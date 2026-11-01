@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   parseWordList, splitLine, planAdd, applyEdit, chapterText, checkTyped, nextBox, level, summarize, pickRound,
   pickOptions, streak, bestTime, formKind, formQuestion, genderOf, genderQuestion, typingAnswer, isDue, isReview, matchWords, parseExercise, exerciseLine, sentenceTokens, checkOrder, exerciseQuestion, matchExercises, alternatives, speakable, splitNote, distance, isMistake, EXAMPLE, kindOf,
+  synonymsOf, withSynonym, withoutSynonym, withAnswer, withoutAnswer, sameMeaning,
 } from "../js/core.js";
 import { applyOp, emptyData, normalize } from "../js/data.js";
 
@@ -459,4 +460,58 @@ test("exercises are added to a chapter you have, and stored", () => {
   assert.equal(d.chapters[0].exercises.length, 4, "the same sentence once");
   assert.equal(normalize(JSON.parse(JSON.stringify(d))).chapters[0].exercises.length, 4);
   assert.equal(normalize({ chapters: [{ id: "c", name: "K", words: [], exercises: [{ id: "a", kind: "fyll", text: "no gap", answer: "x" }] }] }).chapters[0].exercises, undefined);
+});
+
+// ---------------------------------------------------------------------------
+// Synonyms: in the list, other words with the same Greek, and ones you teach it
+// ---------------------------------------------------------------------------
+test("synonyms in a note count when typing", () => {
+  assert.deepEqual(synonymsOf("tala (syn. prata)"), ["prata"]);
+  assert.deepEqual(synonymsOf("det var så lite (syn. ingen orsak, inga problem)"), ["ingen orsak", "inga problem"]);
+  assert.deepEqual(synonymsOf("jobba (synonym: arbeta)"), ["arbeta"]);
+  assert.deepEqual(synonymsOf("mjuk (mjukt, mjuka; ant. hård)"), [], "other notes aren't answers");
+  assert.deepEqual(synonymsOf("en syntax (syntaxer)"), []);
+  assert.equal(checkTyped("prata", "tala (syn. prata)").result, "right");
+  assert.equal(checkTyped("prata", "tala (syn. prata) / talar").result, "right", "a verb's answer, with its present");
+  assert.equal(checkTyped("ingen orsak", "det var så lite (syn. ingen orsak)").result, "right");
+  assert.equal(checkTyped("prta", "tala (syn. prata)").result, "almost", "a typo in a synonym is almost");
+  assert.equal(checkTyped("hård", "mjuk (mjukt, mjuka; ant. hård)").result, "wrong", "an opposite in a note isn't the answer");
+  assert.equal(speakable("tala (syn. prata)"), "tala");
+});
+
+test("teaching a synonym, and taking it back", () => {
+  assert.equal(withSynonym("tala", "prata"), "tala (syn. prata)");
+  assert.equal(withSynonym("tala (syn. prata)", "snacka"), "tala (syn. prata, snacka)");
+  assert.equal(withSynonym("tala (syn. prata)", "Prata"), "tala (syn. prata)", "known already");
+  assert.equal(withSynonym("tala", "tala"), "tala");
+  assert.equal(withSynonym("äta (äter, åt)", "käka!"), "äta (äter, åt) (syn. käka)");
+  assert.equal(withoutSynonym("tala (syn. prata, snacka)", "prata"), "tala (syn. snacka)");
+  assert.equal(withoutSynonym("tala (syn. prata)", "prata"), "tala");
+  assert.equal(withAnswer("heter", "kallas"), "heter / kallas");
+  assert.equal(withAnswer("heter / kallas", "kallas"), "heter / kallas");
+  assert.equal(withoutAnswer("heter / kallas", "kallas"), "heter");
+  assert.equal(withoutAnswer("heter", "heter"), "heter", "never no answer at all");
+
+  const words = parseWordList("Kapitel 1\ntala | talar | talade | talat | tala! = μιλάω\nen bil (bilar) = ένα αυτοκίνητο").chapters[0].words.map((w, i) => ({ ...w, id: `w${i}` }));
+  let d = applyOp(emptyData(), { type: "addWords", chapters: [{ id: "c1", name: "Kapitel 1", words, exercises: [
+    { id: "x1", kind: "fyll", text: "Jag ___ Maria.", answer: "heter" }] }] });
+  d = applyOp(d, { type: "accept", word: "w0", text: "prata" });
+  d = applyOp(d, { type: "accept", exercise: "x1", text: "kallas" });
+  const [tala] = d.chapters[0].words;
+  assert.equal(tala.sv, "tala (syn. prata)");
+  assert.equal(tala.forms[0], tala.sv, "with forms: the first form too");
+  assert.equal(checkTyped("prata", typingAnswer(tala)).result, "right");
+  assert.equal(d.chapters[0].exercises[0].answer, "heter / kallas");
+  assert.match(chapterText(d.chapters[0]), /^tala \(syn\. prata\) \| talar/m, "it's in the list's text (Edit, Share)");
+  assert.equal(normalize(JSON.parse(JSON.stringify(d))).chapters[0].words[0].sv, "tala (syn. prata)");
+  d = applyOp(d, { type: "accept", word: "w0", text: "prata", remove: true });
+  assert.equal(d.chapters[0].words[0].sv, "tala");
+});
+
+test("other words with the same Greek are right too", () => {
+  const all = [{ id: "a", sv: "tala", el: "μιλάω" }, { id: "b", sv: "pratar", el: "Μιλάω" }, { id: "c", sv: "säger", el: "λέω" },
+    { id: "d", sv: "en dosa", el: "ένα κουτί (μικρό)" }, { id: "e", sv: "en ask", el: "ένα κουτί (χάρτινο)" }];
+  assert.deepEqual(sameMeaning(all[0], all).map((w) => w.id), ["b"]);
+  assert.deepEqual(sameMeaning(all[2], all), []);
+  assert.deepEqual(sameMeaning(all[3], all), [], "the notes tell them apart");
 });

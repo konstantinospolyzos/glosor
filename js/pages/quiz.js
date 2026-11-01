@@ -1,6 +1,6 @@
 // The exercises: a full-screen round of questions, then what you got right and what to practise again.
 import { h, icon, alertBox } from "../ui.js";
-import { MODES, pickOptions, checkTyped, typingAnswer, core, splitNote, localDay, shuffle, sentenceTokens, checkOrder, EXERCISE_LABELS, BLANK } from "../core.js";
+import { MODES, pickOptions, checkTyped, typingAnswer, core, splitNote, localDay, shuffle, sentenceTokens, checkOrder, sameMeaning, speakable, EXERCISE_LABELS, BLANK } from "../core.js";
 import { store } from "../store.js";
 import { speak } from "../speech.js";
 import { wordText, speakButton, plural } from "./common.js";
@@ -319,17 +319,35 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
     const typed = giveUp ? "" : input.value;
     if (!giveUp && !typed.trim()) { input.focus({ preventScroll: true }); return; }
     current.done = true;
-    const { result, why } = checkTyped(typed, typingAnswer(word));
+    let { result, why } = checkTyped(typed, typingAnswer(word));
+    const vocab = mode === "type";
+    // another word in your lists with exactly this Greek is just as right
+    if (vocab && result !== "right" && !giveUp) {
+      const other = sameMeaning(word, all).find((o) => checkTyped(typed, typingAnswer(o)).result === "right");
+      if (other) { result = "right"; why = `Also right: “${speakable(other.sv)}” means the same in your lists`; }
+    }
     const rec = { id: word.id, res: result };
     answers.push(rec);
     input.classList.add(`is-${result}`);
     submitBtn.textContent = "Continue";
     dunnoBtn.hidden = true;
     if (autoSpeak()) speak(word.say || word.sv);
-    // a right answer the list doesn't know (another word for it): count it yourself
-    const fix = result !== "right" && typed.trim() ? keepFocus(h("button", { type: "button", class: "link-btn fb-fix", onclick: (ev) => {
+    // a right answer the list doesn't know (another word for it): count it yourself. For a word or a gap it's
+    // saved too (a synonym: "tala (syn. prata)"; a gap: "heter / kallas"), so it counts from now on
+    const said = typed.trim().replace(/\s+/g, " ");
+    const target = result === "wrong" ? (vocab ? { word: word.id } : word.kind === "fyll" ? { exercise: word.id } : null) : null;
+    const fix = result !== "right" && said ? keepFocus(h("button", { type: "button", class: "link-btn fb-fix", onclick: (ev) => {
       rec.res = "right";
-      ev.currentTarget.replaceWith(h("span", { class: "fb-fixed" }, icon("check", 15), "Counted as right"));
+      if (!target) { ev.currentTarget.replaceWith(h("span", { class: "fb-fixed" }, icon("check", 15), "Counted as right")); return; }
+      store.accept(target, said);
+      const row = h("div", { class: "fb-fixed-row" },
+        h("span", { class: "fb-fixed" }, icon("check", 15), `Counted as right · “${said}” counts from now on`),
+        keepFocus(h("button", { type: "button", class: "link-btn fb-undo", onclick: () => {
+          store.accept(target, said, true);
+          rec.res = result;
+          row.replaceWith(h("span", { class: "fb-fixed undone" }, "Undone: it counts as wrong"));
+        } }, "Undo")));
+      ev.currentTarget.replaceWith(row);
     } }, "I was right")) : null;
     footSlot.replaceChildren(feedback(result, giveUp ? "" : why, word, fix));
     input.focus({ preventScroll: true });

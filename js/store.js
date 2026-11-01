@@ -281,6 +281,8 @@ class Store {
   /** items: [{id, res: "right" | "almost" | "wrong"}] */
   recordRound(person, mode, items, day) { if (items.length) this.commit({ type: "answers", person, mode, items, day, at: Date.now() }); }
   resetProgress(person) { this.commit({ type: "resetProgress", person }); }
+  /** target: {word: id} or {exercise: id}; text: the answer that counts from now on (remove: not any more) */
+  accept(target, text, remove = false) { this.commit({ type: "accept", ...target, text, ...(remove ? { remove: true } : {}) }); }
   setSetting(key, value) { this.commit({ type: "setSetting", key, value }); }
   replaceAll(data) { this.commit({ type: "replaceAll", data: normalize(data) }); }
 

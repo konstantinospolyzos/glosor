@@ -407,6 +407,9 @@ body.welcome-mode #navbar, body.welcome-mode #tabbar { display: none; }
 .fb-speak { width: 34px; height: 34px; margin: -4px 0; }
 .fb-fix { align-self: flex-start; font-size: 14.5px; }
 .fb-fixed { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 600; color: var(--up-fg); }
+.fb-fixed.undone { color: var(--gray); font-weight: 500; }
+.fb-fixed-row { display: flex; align-items: center; flex-wrap: wrap; column-gap: 14px; row-gap: 2px; }
+.fb-undo { font-size: 14.5px; }
 
 .summary { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 10px; }
 .sum-ring { position: relative; width: 124px; height: 124px; }

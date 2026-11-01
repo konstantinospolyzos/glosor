@@ -1,7 +1,7 @@
 // The data file: chapters of words, the people practising, and each person's progress.
 // Every change is an "operation" (applyOp), so two phones can change the file at the same time:
 // the store replays the changes it hasn't saved yet on top of the newest copy from Google Drive.
-import { APP_NAME, MAX_BOX, nextBox, sameName, uid, wordKey, exerciseKey, BLANK } from "./core.js";
+import { APP_NAME, MAX_BOX, nextBox, sameName, uid, wordKey, exerciseKey, BLANK, withSynonym, withoutSynonym, withAnswer, withoutAnswer } from "./core.js";
 
 export const DATA_VERSION = 1;
 const DAYS_KEPT = 400;
@@ -169,6 +169,20 @@ export function applyOp(data, op) {
       }
       if (op.day && !p.days.includes(op.day)) p.days = [...p.days, op.day].sort().slice(-DAYS_KEPT);
       if (op.items?.length) p.rounds = [...p.rounds, { at: op.at || 0, mode: op.mode, n: op.items.length, right, almost }].slice(-ROUNDS_KEPT);
+      break;
+    }
+    case "accept": {            // another answer that counts: a word's synonym, or another answer for a gap
+      const s = text(op.text);
+      if (!s) break;
+      for (const c of d.chapters) {
+        const w = op.word && c.words.find((x) => x.id === op.word);
+        if (w) {
+          w.sv = op.remove ? withoutSynonym(w.sv, s) : withSynonym(w.sv, s);
+          if (w.forms) w.forms[0] = w.sv;
+        }
+        const x = op.exercise && (c.exercises || []).find((e) => e.id === op.exercise);
+        if (x?.kind === "fyll") x.answer = op.remove ? withoutAnswer(x.answer, s) : withAnswer(x.answer, s);
+      }
       break;
     }
     case "resetProgress":

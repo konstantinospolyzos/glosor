@@ -2,7 +2,7 @@
 // round and the wrong options for the pick-one exercises. No page code here, so the tests run it in Node.
 
 export const APP_NAME = "Glosor";
-export const APP_VERSION = "1.3.1";
+export const APP_VERSION = "1.4";
 
 /** The three exercises. ask: the side you see; answer: the side you give. */
 export const MODES = {
@@ -52,6 +52,53 @@ export function alternatives(text) {
   return String(text || "").replace(/\([^)]*\)/g, " ").split("/")
     .map((x) => x.replace(/\s+/g, " ").trim()).filter(Boolean);
 }
+
+// Synonyms in a note: "tala (syn. prata)", "(syn. ingen orsak, inga problem)", "(synonym: jobba)"
+const SYN_RX = /\(\s*(?:syn(?:onym(?:er)?)?|συν(?:ώνυμο)?)(?:\.\s*|:\s*|\s+)([^)]*)\)/gi;
+const synList = (s) => String(s || "").split(/\s*[,/]\s*|\s+(?:eller|or)\s+/i).map((x) => x.replace(/\s+/g, " ").trim()).filter(Boolean);
+export const synonymsOf = (text) => [...String(text || "").matchAll(SYN_RX)].flatMap((m) => synList(m[1]));
+
+/** Every answer that counts: each way of saying it, and its synonyms */
+export const answersOf = (text) => [...alternatives(text), ...synonymsOf(text)];
+
+const tidy = (s) => String(s || "").replace(/[()]/g, " ").replace(/[.!?]+\s*$/, "").replace(/\s+/g, " ").trim();
+
+/** "tala" + "prata" -> "tala (syn. prata)"; a second one joins the note: "tala (syn. prata, snacka)" */
+export function withSynonym(sv, syn) {
+  const s = tidy(syn);
+  if (!s || answersOf(sv).some((a) => core(a) === core(s))) return sv;
+  const m = new RegExp(SYN_RX.source, "i").exec(sv);
+  if (!m) return `${String(sv).trim()} (syn. ${s})`;
+  const end = m.index + m[0].length - 1;
+  return `${sv.slice(0, end).trimEnd()}, ${s}${sv.slice(end)}`;
+}
+
+export function withoutSynonym(sv, syn) {
+  const gone = core(syn);
+  return String(sv || "").replace(SYN_RX, (all, list) => {
+    const kept = synList(list).filter((x) => core(x) !== gone);
+    return kept.length ? `(syn. ${kept.join(", ")})` : "";
+  }).replace(/\s+/g, " ").trim();
+}
+
+/** A gap's answers: "heter" + "kallas" -> "heter / kallas" */
+export function withAnswer(answer, more) {
+  const s = tidy(more);
+  return !s || alternatives(answer).some((a) => core(a) === core(s)) ? answer : `${answer} / ${s}`;
+}
+export function withoutAnswer(answer, gone) {
+  const kept = alternatives(answer).filter((a) => core(a) !== core(gone));
+  return kept.length ? kept.join(" / ") : answer;
+}
+
+/** The Greek, compared: no accents, case, brackets or punctuation */
+const meaningKey = (el) => String(el || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+  .replace(/[()[\].,!?;:"“”«»'’·]/g, " ").replace(/\s+/g, " ").trim();
+/** Other words in the lists with exactly the same Greek: asked that Greek, any of them is right */
+export const sameMeaning = (w, all) => {
+  const k = meaningKey(w?.el);
+  return k ? (all || []).filter((o) => o && o.id !== w.id && meaningKey(o.el) === k) : [];
+};
 
 /** What answers are compared on: lower case, no notes in brackets, no punctuation, single spaces */
 export function core(text) {
@@ -369,6 +416,7 @@ export function distance(a, b) {
 
 /**
  * typed vs the list's Swedish -> { result: "right" | "almost" | "wrong", why }
+ * Any way of saying it counts ("idag / i dag"), and its synonyms ("tala (syn. prata)").
  * Right: the word (with or without its en/ett/att). Almost: the wrong en/ett, a missing å/ä/ö,
  * or one small typo (two in long words).
  */
@@ -376,7 +424,7 @@ export function checkTyped(typed, expected) {
   const t = core(typed);
   if (!t) return { result: "wrong", why: "" };
   let best = { result: "wrong", why: "" };
-  for (const alt of alternatives(expected)) {
+  for (const alt of answersOf(expected)) {
     const e = core(alt);
     if (!e) continue;
     if (t === e) return { result: "right", why: "" };
