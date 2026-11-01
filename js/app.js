@@ -8,6 +8,7 @@ import { openSettings } from "./pages/settings.js";
 import { startQuiz } from "./pages/quiz.js";
 import { startTimed } from "./pages/timed.js";
 import { currentPerson, roundFor, nameChip } from "./pages/common.js";
+import { watchOpens } from "./greeting.js";
 
 const TABS = [
   { key: "practise", title: "Practise", icon: "cards", render: renderPractise },
@@ -154,6 +155,7 @@ store.onSynced = () => {
 };
 store.load();
 render();
+watchOpens();
 if (store.mode === "drive") store.sync();
 
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});

@@ -2,7 +2,7 @@
 // round and the wrong options for the pick-one exercises. No page code here, so the tests run it in Node.
 
 export const APP_NAME = "Glosor";
-export const APP_VERSION = "1.4";
+export const APP_VERSION = "1.4.1";
 
 /** The three exercises. ask: the side you see; answer: the side you give. */
 export const MODES = {
