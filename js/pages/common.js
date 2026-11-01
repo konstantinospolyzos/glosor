@@ -2,7 +2,7 @@
 import { h, icon, splitBar, alertBox, askText } from "../ui.js";
 import { store } from "../store.js";
 import { allWords } from "../data.js";
-import { isMistake, splitNote } from "../core.js";
+import { isMistake, isReview, splitNote, formQuestion, genderQuestion, MODES, pickRound } from "../core.js";
 import { speak, canSpeak } from "../speech.js";
 
 export const LEVELS = {
@@ -23,11 +23,14 @@ export const currentRecords = () => store.data.progress[currentPerson().id]?.wor
 export const currentProgress = () => store.data.progress[currentPerson().id] || { words: {}, days: [], rounds: [] };
 
 export const mistakes = (data, records) => allWords(data).filter((w) => isMistake(records[w.id]));
+/** Words seen before that are due again today */
+export const reviews = (data, records) => allWords(data).filter((w) => isReview(records[w.id]));
 
 /** The words chosen on Practise: "all", "mistakes" or a list of chapter ids (checked against the data) */
 export function selection(data, records) {
   const sel = store.pref("sel", "all");
   if (sel === "mistakes") return mistakes(data, records).length ? "mistakes" : "all";
+  if (sel === "due") return reviews(data, records).length ? "due" : "all";
   if (Array.isArray(sel)) {
     const ids = sel.filter((id) => data.chapters.some((c) => c.id === id));
     return ids.length ? ids : "all";
@@ -38,6 +41,7 @@ export const setSelection = (sel) => store.setPref("sel", sel);
 
 export function poolFor(data, records, sel) {
   if (sel === "mistakes") return mistakes(data, records);
+  if (sel === "due") return reviews(data, records);
   if (Array.isArray(sel)) return data.chapters.filter((c) => sel.includes(c.id)).flatMap((c) => c.words);
   return allWords(data);
 }
@@ -86,3 +90,20 @@ export function nameChip(refresh) {
 }
 
 export const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * What an exercise asks, from the chosen words: the words themselves, or for En eller ett? and Böj ordet one
+ * question per word that has an en/ett or its forms (with its own progress: "<word id>#g", "<word id>#f").
+ */
+export function questionsFor(mode, words) {
+  if (MODES[mode]?.gender) return words.map(genderQuestion).filter(Boolean);
+  if (MODES[mode]?.forms) return words.map((w) => formQuestion(w)).filter(Boolean);
+  return words;
+}
+
+/** A round: the chosen words (pool), every word (all), and this round's questions */
+export function roundFor(mode, count = store.pref("count", 10)) {
+  const data = store.data, records = currentRecords();
+  const pool = poolFor(data, records, selection(data, records));
+  return { pool, all: allWords(data), words: pickRound(questionsFor(mode, pool), records, count) };
+}

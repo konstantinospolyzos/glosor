@@ -12,6 +12,14 @@ export function emptyData() {
 }
 
 const text = (v) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "");
+
+/** A word as stored: id, Swedish, Greek, and its forms when it has them (the first form is the Swedish) */
+export function cleanWord(w, id = w.id) {
+  const sv = text(w?.sv), el = text(w?.el);
+  const forms = Array.isArray(w?.forms) && w.forms.length >= 2 && w.forms.length <= 5 ? w.forms.map((f) => text(f) || "-") : null;
+  if (forms) forms[0] = sv;
+  return { id, sv, el, ...(forms ? { forms } : {}) };
+}
 const count = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.floor(Number(v)) : 0);
 
 function cleanProgress(p) {
@@ -42,7 +50,7 @@ export function normalize(raw) {
       if (!sv || !el) continue;
       const wid = typeof w.id === "string" && w.id && !wordIds.has(w.id) ? w.id : uid("w");
       wordIds.add(wid);
-      words.push({ id: wid, sv, el });
+      words.push(cleanWord(w, wid));
     }
     chapters.push({ id, name: text(c.name) || "Untitled", created: typeof c.created === "string" ? c.created : null, words });
   }
@@ -79,7 +87,7 @@ export function applyOp(data, op) {
         const ids = new Set(d.chapters.flatMap((x) => x.words.map((w) => w.id)));
         for (const w of c.words || []) {
           if (!w?.sv || !w?.el || have.has(wordKey(w)) || ids.has(w.id)) continue;
-          ch.words.push({ id: w.id, sv: w.sv, el: w.el });
+          ch.words.push(cleanWord(w));
           have.add(wordKey(w));
           ids.add(w.id);
         }
@@ -87,7 +95,7 @@ export function applyOp(data, op) {
       break;
     case "putChapter": {        // renamed or edited
       const ch = { id: op.chapter.id, name: text(op.chapter.name) || "Untitled", created: op.chapter.created || null,
-        words: op.chapter.words.map((w) => ({ id: w.id, sv: w.sv, el: w.el })) };
+        words: op.chapter.words.map((w) => cleanWord(w)) };
       const i = d.chapters.findIndex((x) => x.id === ch.id);
       if (i >= 0) d.chapters[i] = ch; else d.chapters.push(ch);
       break;

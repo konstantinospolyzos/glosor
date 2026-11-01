@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseWordList, splitLine, planAdd, applyEdit, chapterText, checkTyped, nextBox, level, summarize, pickRound,
-  pickOptions, streak, bestTime, alternatives, speakable, splitNote, distance, isMistake, EXAMPLE, kindOf,
+  pickOptions, streak, bestTime, formKind, formQuestion, genderOf, genderQuestion, typingAnswer, isDue, isReview, matchWords, alternatives, speakable, splitNote, distance, isMistake, EXAMPLE, kindOf,
 } from "../js/core.js";
 import { applyOp, emptyData, normalize } from "../js/data.js";
 
@@ -298,4 +298,70 @@ test("a damaged file is tidied, a wrong one refused", () => {
 test("best Tidsjakt score", () => {
   assert.equal(bestTime([]), 0);
   assert.equal(bestTime([{ mode: "time", right: 12 }, { mode: "sv-el", right: 30 }, { mode: "time", right: 17 }]), 17);
+});
+
+// ---------------------------------------------------------------------------
+// Word forms, en/ett, coming back over days
+// ---------------------------------------------------------------------------
+const FORMS = `Kapitel 9
+en kock | kocken | kockar | kockarna = ένας μάγειρας
+tala | talar | talade | talat | tala! = μιλάω
+stor | stort | stora = μεγάλος
+(en) mat | maten | - | - = φαγητό`;
+
+test("forms are read, written back and recognised", () => {
+  const { chapters, skipped } = parseWordList(FORMS);
+  assert.equal(skipped.length, 0);
+  const [kock, tala, stor, mat] = chapters[0].words;
+  assert.deepEqual(kock, { sv: "en kock", el: "ένας μάγειρας", forms: ["en kock", "kocken", "kockar", "kockarna"] });
+  assert.equal(formKind(kock), "noun");
+  assert.equal(formKind(tala), "verb");
+  assert.equal(formKind(stor), "adj");
+  assert.deepEqual(mat.forms, ["(en) mat", "maten", "-", "-"]);
+  assert.equal(chapterText(chapters[0]), FORMS, "the same text comes back");
+  assert.equal(kindOf(tala), "verb");
+});
+
+test("Böj ordet questions", () => {
+  const [kock, tala, , mat] = parseWordList(FORMS).chapters[0].words.map((w, i) => ({ ...w, id: `w${i}` }));
+  const q = formQuestion(kock, () => 0.5);                        // targets 1, 2, 3 -> the middle one
+  assert.deepEqual([q.id, q.prompt, q.sv, q.label], ["w0#f", "en kock", "kockar", "plural"]);
+  const inf = formQuestion(tala, () => 0);                        // the infinitive: given the present
+  assert.deepEqual([inf.prompt, inf.sv, inf.label], ["talar", "tala", "infinitiv"]);
+  for (let i = 0; i < 20; i++) assert.equal(formQuestion(mat).sv, "maten", "only the forms that exist");
+  assert.equal(formQuestion({ id: "x", sv: "hej", el: "γεια" }), null);
+  assert.equal(checkTyped("talar", typingAnswer(tala)).result, "right", "a verb typed in the present counts");
+  assert.equal(checkTyped("tala", typingAnswer(tala)).result, "right");
+});
+
+test("en or ett", () => {
+  assert.deepEqual(genderOf({ sv: "(ett) kaffe" }), { article: "ett", noun: "kaffe" });
+  assert.deepEqual(genderOf({ sv: "en kock (kockar)" }), { article: "en", noun: "kock" });
+  assert.deepEqual(genderOf({ sv: "ett jobb / ett yrke" }), { article: "ett", noun: "jobb" });
+  assert.equal(genderOf({ sv: "stor" }), null);
+  assert.equal(genderOf({ sv: "en" }), null);
+  assert.deepEqual(genderQuestion({ id: "w1", sv: "ett hus", el: "ένα σπίτι" }),
+    { id: "w1#g", word: "w1", sv: "ett hus", el: "ένα σπίτι", prompt: "hus", article: "ett" });
+});
+
+test("words come back after a few days, longer each time", () => {
+  const now = Date.parse("2026-11-10T09:00:00");
+  const ago = (days) => now - days * 86400000;
+  assert.equal(isDue(undefined, now), true);
+  assert.equal(isDue({ b: 3, r: 3, t: ago(1) }, now), false, "box 3: back after 4 days");
+  assert.equal(isDue({ b: 3, r: 3, t: ago(4) }, now), true);
+  assert.equal(isDue({ b: 1, r: 1, t: Date.parse("2026-11-09T21:00:00") }, now), true, "last night: due this morning");
+  assert.equal(isDue({ b: 5, r: 5, t: ago(10) }, now), false);
+  assert.equal(isReview(undefined, now), false, "new words aren't reviews");
+  assert.equal(isReview({ b: 0, w: 1, t: ago(0.1) }, now), true);
+});
+
+test("replacing a chapter with its forms keeps the progress", () => {
+  const old = [{ id: "a", sv: "en kock (kockar)", el: "ένας μάγειρας" }, { id: "b", sv: "talar (syn. pratar)", el: "μιλάω" }];
+  const words = matchWords(old, parseWordList(FORMS).chapters[0].words);
+  assert.equal(words[0].id, "a");
+  assert.equal(words[1].id, "b", "same Greek: the same word");
+  assert.equal(words[1].forms.length, 5);
+  const d = normalize({ chapters: [{ id: "c", name: "K", words }] });
+  assert.deepEqual(d.chapters[0].words[1].forms, ["tala", "talar", "talade", "talat", "tala!"]);
 });

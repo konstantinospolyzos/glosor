@@ -1,6 +1,6 @@
 // The exercises: a full-screen round of questions, then what you got right and what to practise again.
 import { h, icon, alertBox } from "../ui.js";
-import { MODES, pickOptions, checkTyped, core, splitNote, localDay, shuffle } from "../core.js";
+import { MODES, pickOptions, checkTyped, typingAnswer, core, splitNote, localDay, shuffle } from "../core.js";
 import { store } from "../store.js";
 import { speak } from "../speech.js";
 import { wordText, speakButton, plural } from "./common.js";
@@ -28,8 +28,9 @@ function ring(pct) {
 }
 
 /**
- * mode: "sv-el" | "el-sv" | "type"; words: this round's words; pool: the chosen words; all: every word
- * (wrong options come from the pool first); person: who's practising; repick(): a new round's words.
+ * mode: a key of MODES; words: this round's questions (words, or for En eller ett? and Böj ordet the questions
+ * made from them: {id, sv (the answer), el, prompt, label, hint, article, fb}); pool: the chosen words; all: every
+ * word (wrong options come from the pool first); person: who's practising; repick(): a new round.
  */
 export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
   const M = MODES[mode];
@@ -50,7 +51,7 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
   // Typing: one answer box for the whole round, so the keyboard stays up from word to word
   let input = null, submitBtn = null, dunnoBtn = null, typeForm = null;
   if (M.type) {
-    input = h("input", { class: "type-input", type: "text", placeholder: "Skriv på svenska…", autocomplete: "off", autocorrect: "off",
+    input = h("input", { class: "type-input", type: "text", placeholder: M.forms ? "Skriv formen…" : "Skriv på svenska…", autocomplete: "off", autocorrect: "off",
       autocapitalize: "none", spellcheck: "false", enterkeyhint: "go", lang: "sv", "aria-label": "Your answer in Swedish" });
     const keys = h("div", { class: "sv-keys" }, ["å", "ä", "ö"].map((ch) =>
       keepFocus(h("button", { type: "button", class: "sv-key", tabindex: "-1", "aria-label": ch, onclick: () => insertAtCursor(input, ch) }, ch))));
@@ -114,6 +115,23 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
   }
 
   function showPrompt(word) {
+    if (M.listen) {                     // Lyssna: the word is heard, and shown once answered
+      const play = h("button", { type: "button", class: "listen-btn", "aria-label": "Listen again", onclick: () => speak(word.sv) }, icon("speaker", 46));
+      promptSlot.replaceChildren(h("div", { class: "q-card listen-card" },
+        h("div", { class: "q-lang" }, "Lyssna"), play, h("div", { class: "q-hidden" }, "Tap to hear it again")));
+      speak(word.sv);
+      return;
+    }
+    if (word.prompt) {                  // En eller ett? and Böj ordet: a Swedish word, what's asked, and its meaning
+      const { main } = splitNote(word.prompt);
+      promptSlot.replaceChildren(h("div", { class: "q-card" },
+        h("div", { class: "q-lang" }, M.gender ? "En eller ett?" : "Böj ordet"),
+        h("div", { class: `q-word ${sizeClass(main)}`, lang: "sv" }, main),
+        h("div", { class: "q-meaning", lang: "el" }, word.el),
+        M.forms ? h("div", { class: "q-ask" }, h("b", null, word.label), word.hint ? ` · ${word.hint}` : "") : null,
+        speakButton(word.prompt, 22, "q-speak")));
+      return;
+    }
     const { main, note } = splitNote(word[M.ask]);
     const sv = M.ask === "sv";
     promptSlot.replaceChildren(h("div", { class: "q-card" },
@@ -123,11 +141,19 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
       sv ? speakButton(word.sv, 22, "q-speak") : null));
   }
 
+  /** After a Lyssna answer: show the word that was said */
+  function reveal(word) {
+    const card = promptSlot.querySelector(".listen-card");
+    const { main, note } = splitNote(word.sv);
+    card?.querySelector(".q-hidden")?.replaceWith(h("div", { class: "q-revealed" }, main, note ? h("span", { class: "word-note" }, ` ${note}`) : null));
+  }
+
   function feedback(result, why, word, extra = null) {
     return h("div", { class: `feedback fb-${result}` },
       h("div", { class: "fb-head" }, icon(result === "right" ? "check" : result === "almost" ? "info" : "close", 20), TITLES[result]),
       why ? h("div", { class: "fb-why" }, why) : null,
-      word ? h("div", { class: "fb-pair" }, wordText(word.sv, "fb-sv"), h("span", { class: "fb-eq" }, "="), h("span", { class: "fb-el" }, word.el),
+      word ? h("div", { class: "fb-pair" },
+        word.fb ? h("span", { class: "fb-sv" }, word.fb) : [wordText(word.sv, "fb-sv"), h("span", { class: "fb-eq" }, "="), h("span", { class: "fb-el" }, word.el)],
         speakButton(word.sv, 18, "fb-speak")) : null,
       extra);
   }
@@ -137,7 +163,7 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
     clearTimeout(timer);
     showPrompt(word);
     footSlot.replaceChildren();
-    if (M.type) askTyped(word); else askChoice(word);
+    if (M.gender) askGender(word); else if (M.type) askTyped(word); else askChoice(word);
   }
 
   function next() {
@@ -164,6 +190,7 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
       buttons[rightAt].classList.add("right");
       buttons.forEach((b, j) => { if (j !== k && j !== rightAt) b.classList.add("dim"); });
       answers.push({ id: word.id, res: right ? "right" : "wrong" });
+      if (M.listen) reveal(word);
       if (autoSpeak() && show === "sv") speak(word.sv);
       if (right) {
         footSlot.replaceChildren(feedback("right", "", null));
@@ -174,7 +201,30 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
     }
     current = { word, done: false, moved: false, choose };
     answerSlot.replaceChildren(h("div", { class: "options" }, buttons));
-    if (autoSpeak() && M.ask === "sv") speak(word.sv);
+    if (autoSpeak() && M.ask === "sv" && !M.listen) speak(word.sv);
+  }
+
+  // -- en or ett ------------------------------------------------------------------
+  function askGender(word) {
+    const choices = ["en", "ett"];
+    const buttons = choices.map((a, k) => h("button", { type: "button", class: "gender-btn", lang: "sv", onclick: () => choose(k) }, a));
+    function choose(k) {
+      if (current.done || k > 1) return;
+      current.done = true;
+      const right = choices[k] === word.article;
+      buttons[k].classList.add(right ? "right" : "wrong");
+      if (!right) buttons[1 - k].classList.add("right");
+      answers.push({ id: word.id, res: right ? "right" : "wrong" });
+      if (autoSpeak()) speak(word.sv);
+      if (right) {
+        footSlot.replaceChildren(feedback("right", "", word));
+        timer = setTimeout(next, AUTO_NEXT);
+      } else {
+        footSlot.replaceChildren(feedback("wrong", "", word), h("button", { type: "button", class: "btn primary wide", onclick: next }, "Continue"));
+      }
+    }
+    current = { word, done: false, moved: false, choose };
+    answerSlot.replaceChildren(h("div", { class: "gender-row" }, buttons));
   }
 
   // -- type it ------------------------------------------------------------------
@@ -193,7 +243,7 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
     const typed = giveUp ? "" : input.value;
     if (!giveUp && !typed.trim()) { input.focus({ preventScroll: true }); return; }
     current.done = true;
-    const { result, why } = checkTyped(typed, word.sv);
+    const { result, why } = checkTyped(typed, typingAnswer(word));
     const rec = { id: word.id, res: result };
     answers.push(rec);
     input.classList.add(`is-${result}`);
@@ -237,7 +287,7 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
         h("div", { class: "sum-caption" }, "Words to practise · tap to hear"),
         h("div", { class: "group sum-list" }, missed.map(([w, res]) => h("button", { type: "button", class: "word-row", onclick: () => speak(w.sv) },
           h("span", { class: `dot ${res === "almost" ? "dot-almost" : "dot-wrong"}` }),
-          h("span", { class: "word-texts" }, wordText(w.sv, "word-sv"), h("span", { class: "word-el" }, w.el)),
+          h("span", { class: "word-texts" }, w.fb ? h("span", { class: "word-sv" }, w.fb) : wordText(w.sv, "word-sv"), h("span", { class: "word-el" }, w.el)),
           speakButton(w.sv, 18, "row-speaker")))),
       ] : null));
     stage.scrollTop = 0;

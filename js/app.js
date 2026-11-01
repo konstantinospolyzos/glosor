@@ -1,7 +1,5 @@
 // Glosor for phones: app shell (navigation bar, tabs, pages).
 import { store, describeData } from "./store.js";
-import { allWords } from "./data.js";
-import { pickRound } from "./core.js";
 import { h, icon, alertBox } from "./ui.js";
 import { renderPractise } from "./pages/practise.js";
 import { renderWords, openAddWords } from "./pages/words.js";
@@ -9,7 +7,7 @@ import { renderWelcome } from "./pages/welcome.js";
 import { openSettings } from "./pages/settings.js";
 import { startQuiz } from "./pages/quiz.js";
 import { startTimed } from "./pages/timed.js";
-import { currentPerson, currentRecords, selection, poolFor, nameChip } from "./pages/common.js";
+import { currentPerson, roundFor, nameChip } from "./pages/common.js";
 
 const TABS = [
   { key: "practise", title: "Practise", icon: "cards", render: renderPractise },
@@ -38,18 +36,12 @@ function context() {
   };
 }
 
-/** The words for a round, from what's chosen on Practise */
-function roundWords() {
-  const data = store.data, records = currentRecords();
-  const pool = poolFor(data, records, selection(data, records));
-  return { pool, all: allWords(data), words: pickRound(pool, records, store.pref("count", 10)) };
-}
-
 function startRound(mode) {
-  const { words, pool, all } = roundWords();
+  const repick = () => roundFor(mode);
+  const { words, pool, all } = repick();
   if (!words.length) return;
-  if (mode === "time") { startTimed({ pool, all, person: currentPerson(), repick: roundWords, onEnd: () => render() }); return; }
-  startQuiz({ mode, words, pool, all, person: currentPerson(), repick: roundWords, onEnd: () => render() });
+  if (mode === "time") { startTimed({ pool, all, person: currentPerson(), repick, onEnd: () => render() }); return; }
+  startQuiz({ mode, words, pool, all, person: currentPerson(), repick, onEnd: () => render() });
 }
 
 /** First time a phone with words meets a Drive file that also has words: which to keep? */

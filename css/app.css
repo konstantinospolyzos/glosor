@@ -164,6 +164,7 @@ body.welcome-mode #navbar, body.welcome-mode #tabbar { display: none; }
 .pick-chip.on .pick-n { color: rgba(255, 255, 255, 0.8); }
 .pick-chip.warn:not(.on) { color: var(--warn-fg); background: var(--warn-bg); }
 .pick-chip.warn.on { background: var(--orange); }
+.pick-chip.due:not(.on) { color: var(--blue); background: var(--info-bg); }
 .pick-chip:active { opacity: 0.7; }
 .round-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--sep); }
 .round-text { font-size: 15px; color: var(--label2); }
@@ -178,6 +179,10 @@ body.welcome-mode #navbar, body.welcome-mode #tabbar { display: none; }
 .ex-indigo { background: linear-gradient(180deg, #7A78F0, #4B48C9); }
 .ex-orange { background: linear-gradient(180deg, #FFB340, #F08A00); }
 .ex-green { background: linear-gradient(180deg, #4CD964, #1FA83C); }
+.ex-teal { background: linear-gradient(180deg, #4FC3D9, #1A93AD); }
+.ex-pink { background: linear-gradient(180deg, #FF5E80, #E0284F); }
+.ex-purple { background: linear-gradient(180deg, #C77DEB, #9A3FCB); }
+.ex-glyph.small { font-size: 12.5px; }
 .ex-glyph { font-size: 15.5px; font-weight: 800; letter-spacing: -0.02em; }
 .ex-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ex-title { font-size: 17px; font-weight: 600; }
@@ -421,3 +426,32 @@ body.welcome-mode #navbar, body.welcome-mode #tabbar { display: none; }
 .time-best { font-size: 15px; font-weight: 600; color: var(--label2); margin-top: 8px; }
 .time-result { font-size: 72px; line-height: 1; font-weight: 800; color: var(--green); margin-top: 20px; }
 .mode-time .opt { min-height: 56px; }
+
+/* ---------- due today, word forms ---------- */
+.due-row { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 12px; padding: 10px 12px; border-radius: 10px;
+  background: var(--info-bg); color: var(--blue); font-size: 15px; font-weight: 600; text-align: left; }
+.due-row span { flex: 1; }
+.due-row:active { opacity: 0.6; }
+.word-forms { font-size: 13.5px; color: var(--gray); }
+.mode-slot { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.mode-slot:empty { display: none; }
+.mode-note { font-size: 13px; color: var(--gray); padding: 0 6px; }
+
+/* ---------- Lyssna, En eller ett?, Böj ordet ---------- */
+.q-meaning { font-size: 16px; color: var(--gray); }
+.q-ask { margin-top: 8px; font-size: 15px; color: var(--label2); background: var(--fill); border-radius: 999px; padding: 5px 12px; }
+.q-ask b { color: var(--blue); }
+.listen-card { gap: 8px; }
+.listen-btn { width: 92px; height: 92px; border-radius: 46px; margin-top: 12px; display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; background: linear-gradient(180deg, #4FC3D9, #1A93AD); box-shadow: 0 6px 16px rgba(26, 147, 173, 0.3); }
+.listen-btn:active { transform: scale(0.96); }
+.q-hidden { font-size: 13.5px; color: var(--gray); }
+.q-revealed { font-size: 26px; font-weight: 700; }
+.gender-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.gender-btn { height: 96px; border-radius: 18px; background: var(--card); border: 2px solid transparent; font-size: 34px; font-weight: 800;
+  transition: background 0.15s, border-color 0.15s; }
+.gender-btn:active { background: var(--fill); }
+.gender-btn.right { border-color: var(--green); background: var(--up-bg); color: var(--up-fg); }
+.gender-btn.wrong { border-color: var(--red); background: var(--down-bg); color: var(--down-fg); }
+.time-bests { align-self: stretch; }
+.info-value.strong { color: var(--label); font-weight: 700; }

@@ -1,15 +1,20 @@
-// Practise: choose the words, then one of the three exercises. Your progress underneath.
+// Practise: choose the words, then an exercise. Your progress underneath.
 import { h, icon, segmented, caption, alertBox } from "../ui.js";
 import { store } from "../store.js";
 import { allWords } from "../data.js";
-import { MODES, summarize, streak, localDay } from "../core.js";
-import { currentPerson, currentRecords, currentProgress, selection, setSelection, poolFor, mistakes, levelBar, dot, plural, LEVELS } from "./common.js";
+import { MODES, summarize, streak, localDay, bestTime } from "../core.js";
+import { currentPerson, currentRecords, currentProgress, selection, setSelection, poolFor, mistakes, reviews, questionsFor, levelBar, dot, plural, LEVELS } from "./common.js";
+import { canSpeak } from "../speech.js";
 import { openAddWords, addExample } from "./words.js";
 
 export const ROUND_SIZES = [[10, "10"], [20, "20"], [0, "All"]];
 
-// [mode, tile colour, tile text or icon name]
-const EXERCISES = [["sv-el", "ex-blue", "Å→α"], ["el-sv", "ex-indigo", "α→Å"], ["type", "ex-orange", "keyboard"], ["time", "ex-green", "timer"]];
+// [caption, [mode, tile colour, tile text or icon name]...]
+const EXERCISES = [
+  ["Words", [["sv-el", "ex-blue", "Å→α"], ["el-sv", "ex-indigo", "α→Å"], ["type", "ex-orange", "keyboard"], ["listen", "ex-teal", "speaker"]]],
+  ["Grammar", [["gender", "ex-pink", "en/ett"], ["forms", "ex-purple", "edit"]]],
+  ["Game", [["time", "ex-green", "timer"]]],
+];
 
 export function renderPractise(ctx) {
   const data = store.data;
@@ -22,6 +27,7 @@ export function renderPractise(ctx) {
   const sel = selection(data, records);
   const pool = poolFor(data, records, sel);
   const missed = mistakes(data, records);
+  const due = reviews(data, records);
   const chosen = (id) => Array.isArray(sel) && sel.includes(id);
   const pick = (next) => { setSelection(next); ctx.refresh(); };
   const toggleChapter = (id) => {
@@ -42,23 +48,34 @@ export function renderPractise(ctx) {
     h("div", { class: "pick-chips" },
       chip("All words", all.length, sel === "all", () => pick("all")),
       data.chapters.map((c) => chip(c.name, c.words.length, chosen(c.id), () => toggleChapter(c.id))),
+      due.length ? chip("Due today", due.length, sel === "due", () => pick("due"), "due") : null,
       missed.length ? chip("Missed", missed.length, sel === "mistakes", () => pick("mistakes"), "warn") : null),
     h("div", { class: "round-row" }, h("span", { class: "round-text" }, `Round: ${plural(roundN, "word")}`), sizes));
 
   const tooFew = new Set(all.map((w) => w.el)).size < 2;
-  const exercises = h("div", { class: "exercises" }, EXERCISES.map(([mode, tone, glyph]) => {
+  const best = bestTime(currentProgress().rounds);
+  // why an exercise can't start with the words chosen (or null when it can)
+  const blocked = (M) => {
+    if (M.gender) return questionsFor("gender", pool).length ? null : "No en/ett words in the chosen chapters";
+    if (M.forms) return questionsFor("forms", pool).length ? null : "No word forms in these chapters yet";
+    if (M.listen && !canSpeak()) return "This phone can't read words aloud";
+    return !M.type && tooFew ? "Needs at least two words" : null;
+  };
+  const card = ([mode, tone, glyph]) => {
     const M = MODES[mode];
-    const off = !M.type && tooFew;
-    return h("button", { type: "button", class: "exercise", disabled: off || null, onclick: () => ctx.startQuiz(mode) },
-      h("span", { class: `ex-icon ${tone}` }, /^[a-z]+$/.test(glyph) ? icon(glyph, 26) : h("span", { class: "ex-glyph" }, glyph)),
-      h("span", { class: "ex-text" }, h("span", { class: "ex-title" }, M.title), h("span", { class: "ex-sub" }, off ? "Needs at least two words" : M.text)),
+    const why = blocked(M);
+    const sub = why || (mode === "time" && best ? `${M.text} · best ${best}` : M.text);
+    return h("button", { type: "button", class: "exercise", disabled: why ? true : null, onclick: () => ctx.startQuiz(mode) },
+      h("span", { class: `ex-icon ${tone}` }, /^[a-z]+$/.test(glyph) ? icon(glyph, 26) : h("span", { class: `ex-glyph ${glyph.length > 4 ? "small" : ""}` }, glyph)),
+      h("span", { class: "ex-text" }, h("span", { class: "ex-title" }, M.title), h("span", { class: "ex-sub" }, sub)),
       icon("chevron", 16, "chev"));
-  }));
+  };
+  const groups = EXERCISES.flatMap(([name, list]) => [caption(name), h("div", { class: "exercises" }, list.map(card))]);
 
-  return [subtitle, caption("Words to practise"), words, caption("Exercise"), exercises, progressCard(person, records)];
+  return [subtitle, caption("Words to practise"), words, ...groups, progressCard(person, records, due, () => pick("due"))];
 }
 
-function progressCard(person, records) {
+function progressCard(person, records, due, pickDue) {
   const data = store.data;
   const prog = currentProgress();
   const s = summarize(allWords(data), records);
@@ -78,6 +95,8 @@ function progressCard(person, records) {
       days ? h("div", { class: "streak", title: "Days in a row" }, icon("flame", 20), h("span", null, plural(days, "day")), h("span", { class: "streak-sub" }, "in a row")) : null),
     levelBar(s, 8),
     h("div", { class: "legend" }, legend),
+    due.length ? h("button", { type: "button", class: "due-row", onclick: pickDue },
+      icon("sync", 18), h("span", null, `${plural(due.length, "word")} to review today`), icon("chevron", 14, "chev")) : null,
     last ? h("div", { class: "last-round" }, `Last round: ${last.right + last.almost} of ${last.n} right · ${MODES[last.mode]?.title || ""} · ${when(last.at)}`)
       : h("div", { class: "last-round" }, "Words move up each time you get them right, and come back more often when you miss them."));
 }

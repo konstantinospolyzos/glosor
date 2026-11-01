@@ -11,6 +11,16 @@ const WRONG_PAUSE = 900;           // ms to see the right answer after a wrong o
 
 const sizeClass = (s) => (s.length > 28 ? "xs" : s.length > 18 ? "sm" : s.length > 11 ? "md" : "");
 
+/** Everyone's best, when more than one person practises with this file */
+function everyonesBest() {
+  const d = store.data;
+  if (d.people.length < 2) return null;
+  const rows = d.people.map((p) => [p, bestTime(d.progress[p.id]?.rounds)]).sort((a, b) => b[1] - a[1]);
+  return h("div", { class: "time-bests" }, h("div", { class: "sum-caption" }, "Best scores"),
+    h("div", { class: "group" }, rows.map(([p, best], i) => h("div", { class: "info-row" },
+      h("span", { class: "info-label" }, `${i === 0 && best ? "🏆 " : ""}${p.name}`), h("span", { class: "info-value strong" }, plural(best, "word"))))));
+}
+
 /** pool: the chosen words; all: every word (wrong options); person: who's practising */
 export function startTimed({ pool, all, person, repick, onEnd }) {
   let answers = [], queue = [], timer = null, tick = null, endsAt = 0, closed = false, running = false, current = null;
@@ -69,9 +79,10 @@ export function startTimed({ pool, all, person, repick, onEnd }) {
       h("div", { class: "time-big" }, icon("timer", 64)),
       h("div", { class: "sum-title" }, MODES.time.title),
       h("div", { class: "sum-sub" }, `As many words as you can in ${TIME_LIMIT} seconds. Swedish and Greek mixed; a wrong answer costs you a moment.`),
-      best ? h("div", { class: "time-best" }, `Your best: ${plural(best, "word")}`) : null,
+      store.data.people.length < 2 && best ? h("div", { class: "time-best" }, `Your best: ${plural(best, "word")}`) : null,
       h("div", { class: "sum-buttons" },
-        h("button", { type: "button", class: "btn primary wide start-btn", onclick: start }, "Start"))));
+        h("button", { type: "button", class: "btn primary wide start-btn", onclick: start }, "Start")),
+      everyonesBest()));
   }
 
   function start() {
@@ -136,7 +147,7 @@ export function startTimed({ pool, all, person, repick, onEnd }) {
       h("div", { class: "time-result" }, String(right)),
       h("div", { class: "sum-title" }, record ? "Nytt rekord!" : right ? "Bra jobbat!" : "Försök igen!"),
       h("div", { class: "sum-sub" }, `${plural(right, "word")} in ${TIME_LIMIT} seconds${answers.length > right ? ` · ${answers.length - right} wrong` : ""}`),
-      h("div", { class: "time-best" }, `Your best: ${plural(Math.max(right, before), "word")}`),
+      store.data.people.length < 2 ? h("div", { class: "time-best" }, `Your best: ${plural(Math.max(right, before), "word")}`) : null,
       h("div", { class: "sum-buttons" },
         h("button", { type: "button", class: "btn primary wide start-btn", onclick: () => {
           const fresh = repick();
@@ -144,6 +155,7 @@ export function startTimed({ pool, all, person, repick, onEnd }) {
           start();
         } }, "Play again"),
         h("button", { type: "button", class: "btn plain wide", onclick: close }, "Done")),
+      everyonesBest(),
       missed.length ? [
         h("div", { class: "sum-caption" }, "Missed · tap to hear"),
         h("div", { class: "group sum-list" }, missed.map((w) => h("button", { type: "button", class: "word-row", onclick: () => speak(w.sv) },

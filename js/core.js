@@ -2,13 +2,16 @@
 // round and the wrong options for the pick-one exercises. No page code here, so the tests run it in Node.
 
 export const APP_NAME = "Glosor";
-export const APP_VERSION = "1.0";
+export const APP_VERSION = "1.1";
 
 /** The three exercises. ask: the side you see; answer: the side you give. */
 export const MODES = {
   "sv-el": { key: "sv-el", title: "Svenska → Ελληνικά", text: "See the Swedish, pick the Greek", ask: "sv", answer: "el", type: false },
   "el-sv": { key: "el-sv", title: "Ελληνικά → Svenska", text: "See the Greek, pick the Swedish", ask: "el", answer: "sv", type: false },
   type: { key: "type", title: "Skriv på svenska", text: "See the Greek, type the Swedish", ask: "el", answer: "sv", type: true },
+  listen: { key: "listen", title: "Lyssna", text: "Hear the Swedish, pick the Greek", ask: "sv", answer: "el", type: false, listen: true },
+  gender: { key: "gender", title: "En eller ett?", text: "Is it en or ett?", ask: "sv", answer: "sv", type: false, gender: true },
+  forms: { key: "forms", title: "Böj ordet", text: "Plural, the …, verb forms: type them", ask: "sv", answer: "sv", type: true, forms: true },
   // against the clock: pick ones, Swedish → Greek and Greek → Swedish mixed
   time: { key: "time", title: "Tidsjakt", text: "As many words as you can in 60 seconds", ask: "sv", answer: "el", type: false, timed: true },
 };
@@ -66,6 +69,8 @@ export const sameName = (a, b) => core(a) === core(b);
 
 /** en/ett words, att verbs, the rest: the wrong options look like the right one */
 export function kindOf(w) {
+  const k = formKind(w);
+  if (k) return k === "adj" ? "other" : k;
   const s = core(w.sv);
   if (/^(en|ett) /.test(s)) return "noun";
   if (/^att /.test(s)) return "verb";
@@ -104,12 +109,23 @@ const EDGE_RX = /^[\s\-–—=:;|,→>]+|[\s\-–—=:|,→>]+$/g;
 
 const clean = (s) => String(s || "").replace(EDGE_RX, "").replace(/\s+/g, " ").trim();
 
+// a side with forms keeps its "-" (no such form) and "|" at the ends
+const cleanSide = (s) => (s.includes("|") ? s.replace(/^[\s=:;,→>]+|[\s=:;,→>]+$/g, "").replace(/\s+/g, " ").trim() : clean(s));
+
 function pair(a, b) {
-  a = clean(a); b = clean(b);
+  a = cleanSide(a); b = cleanSide(b);
   if (!a || !b) return null;
   const ga = hasGreek(a), gb = hasGreek(b);
   if (ga === gb) return null;                   // one side Swedish, the other Greek
-  return ga ? { sv: b, el: a } : { sv: a, el: b };
+  return withForms(ga ? { sv: b, el: a } : { sv: a, el: b });
+}
+
+/** "en kock | kocken | kockar | kockarna" -> sv "en kock" and its forms ("-" for one that doesn't exist) */
+function withForms(p) {
+  if (!p.sv.includes("|")) return p;
+  const forms = p.sv.split("|").map((f) => f.replace(/\s+/g, " ").trim() || "-");
+  if (forms.length < 2 || forms[0] === "-") return { sv: forms.filter((f) => f !== "-").join(" ") || p.sv, el: p.el };
+  return { sv: forms[0], el: p.el, forms };
 }
 
 /** One line -> {sv, el}, or null */
@@ -172,7 +188,7 @@ export function planAdd(chapters, parsed, defaultName) {
     for (const w of pc.words) {
       if (have.has(wordKey(w))) { dupes++; continue; }
       have.add(wordKey(w));
-      words.push({ id: uid("w"), sv: w.sv, el: w.el });
+      words.push({ id: uid("w"), sv: w.sv, el: w.el, ...(w.forms ? { forms: w.forms } : {}) });
     }
     if (planned) { planned.words.push(...words); planned.dupes += dupes; return; }
     out.push({ id: target ? target.id : uid("c"), name: target ? target.name : name, target, words, dupes });
@@ -182,15 +198,19 @@ export function planAdd(chapters, parsed, defaultName) {
 
 /** The chapter as text: what Share sends and Edit shows (the same format the paste reads) */
 export function chapterText(ch, withTitle = true) {
-  return [withTitle ? ch.name : null, ...ch.words.map((w) => `${w.sv} = ${w.el}`)].filter(Boolean).join("\n");
+  return [withTitle ? ch.name : null, ...ch.words.map((w) => `${w.forms ? w.forms.join(" | ") : w.sv} = ${w.el}`)].filter(Boolean).join("\n");
 }
 
 /** Edited text -> the chapter's words, keeping each word's id (and so its progress) when it's still there */
 export function applyEdit(chapter, text) {
   const { chapters, skipped } = parseWordList(text);
-  const parsed = chapters.flatMap((c) => c.words);
+  return { words: matchWords(chapter.words, chapters.flatMap((c) => c.words)), skipped };
+}
+
+/** New words for a chapter, each keeping the id (and so the progress) of the old word it matches */
+export function matchWords(oldWords, parsed) {
   const byKey = new Map(), bySv = new Map(), byEl = new Map();
-  for (const w of chapter.words) {
+  for (const w of oldWords) {
     if (!byKey.has(wordKey(w))) byKey.set(wordKey(w), w);
     if (!bySv.has(core(w.sv))) bySv.set(core(w.sv), w);
     if (!byEl.has(core(w.el))) byEl.set(core(w.el), w);
@@ -204,9 +224,9 @@ export function applyEdit(chapter, text) {
     const old = [byKey.get(wordKey(p)), bySv.get(core(p.sv)), byEl.get(core(p.el))].find((w) => w && !used.has(w.id));
     const id = old ? old.id : uid("w");
     used.add(id);
-    words.push({ id, sv: p.sv, el: p.el });
+    words.push({ id, sv: p.sv, el: p.el, ...(p.forms ? { forms: p.forms } : {}) });
   }
-  return { words, skipped };
+  return words;
 }
 
 // ---------------------------------------------------------------------------
@@ -303,7 +323,11 @@ export function summarize(words, records) {
 export function pickRound(words, records, count, rnd = Math.random) {
   const list = [...words];
   if (!count || count >= list.length) return shuffle(list, rnd);
-  const weight = (w) => (MAX_BOX + 1 - Math.max(0, Math.min(MAX_BOX, records?.[w.id]?.b ?? 0))) ** 2;
+  const now = Date.now();
+  const weight = (w) => {
+    const rec = records?.[w.id];
+    return (MAX_BOX + 1 - Math.max(0, Math.min(MAX_BOX, rec?.b ?? 0))) ** 2 * (isDue(rec, now) ? 1 : 0.2);
+  };
   const weights = list.map(weight);
   const out = [];
   for (let k = 0; k < count; k++) {
@@ -339,6 +363,74 @@ export function pickOptions(answer, pool, all, mode, n = OPTIONS, rnd = Math.ran
     }
   }
   return shuffle([answer, ...picked], rnd);
+}
+
+// ---------------------------------------------------------------------------
+// Coming back over days: a word you got right comes back after a few days, longer each time
+// ---------------------------------------------------------------------------
+export const INTERVAL_DAYS = [0, 1, 2, 4, 7, 14];       // by box, in calendar days
+
+export function isDue(rec, now = Date.now()) {
+  if (!rec || !rec.t) return true;
+  const b = Math.max(0, Math.min(MAX_BOX, rec.b || 0));
+  return localDay(new Date(now)) >= addDays(localDay(new Date(rec.t)), INTERVAL_DAYS[b]);
+}
+
+/** Seen before and due again today (new words don't count) */
+export const isReview = (rec, now = Date.now()) => Boolean(rec) && (rec.r || 0) + (rec.a || 0) + (rec.w || 0) > 0 && isDue(rec, now);
+
+// ---------------------------------------------------------------------------
+// Word forms: nouns (en kock | kocken | kockar | kockarna), verbs (tala | talar | talade | talat | tala!),
+// adjectives (stor | stort | stora). "-" means there's no such form.
+// ---------------------------------------------------------------------------
+export const FORM_LABELS = {
+  noun: [["obestämd form", "a …"], ["bestämd form", "the …"], ["plural", "more than one"], ["bestämd plural", "the … (plural)"]],
+  verb: [["infinitiv", "to …"], ["presens", "now"], ["preteritum", "past"], ["supinum", "har …"], ["imperativ", "command!"]],
+  adj: [["en-form", "en-word"], ["ett-form", "ett-word"], ["plural", "plural"]],
+};
+const ARTICLE_RX = /^\(?(en|ett)\)?\s+(.+)$/i;
+
+export function formKind(w) {
+  const f = w?.forms;
+  if (!Array.isArray(f)) return null;
+  if (f.length === 4 && ARTICLE_RX.test(f[0])) return "noun";
+  if (f.length === 5) return "verb";
+  if (f.length === 3) return "adj";
+  return null;
+}
+
+/** A "Böj ordet" question: one word, one form asked. Verbs sometimes give the present and ask the infinitive. */
+export function formQuestion(w, rnd = Math.random) {
+  const kind = formKind(w);
+  if (!kind) return null;
+  const f = w.forms;
+  const ok = (t) => f[t] && f[t] !== "-";
+  const targets = (kind === "verb" ? [0, 1, 2, 3, 4] : kind === "noun" ? [1, 2, 3] : [1, 2]).filter(ok);
+  if (kind === "verb" && !ok(1)) targets.splice(targets.indexOf(0), 1);
+  if (!targets.length) return null;
+  const t = targets[Math.floor(rnd() * targets.length)];
+  const given = kind === "verb" && t === 0 ? 1 : 0;
+  const [label, hint] = FORM_LABELS[kind][t];
+  return { id: `${w.id}#f`, word: w.id, sv: f[t], el: w.el, prompt: f[given], label, hint, kind,
+    fb: `${splitNote(f[given]).main} → ${f[t]}` };
+}
+
+/** En or ett: from "ett hus", "(ett) kaffe" */
+export function genderOf(w) {
+  const m = ARTICLE_RX.exec(String(w?.forms?.[0] || w?.sv || "").split("/")[0].trim());
+  if (!m) return null;
+  const noun = splitNote(m[2]).main;
+  return noun ? { article: m[1].toLowerCase(), noun } : null;
+}
+
+export function genderQuestion(w) {
+  const g = genderOf(w);
+  return g ? { id: `${w.id}#g`, word: w.id, sv: `${g.article} ${g.noun}`, el: w.el, prompt: g.noun, article: g.article } : null;
+}
+
+/** What counts when typing a word: verbs also by their present form (μιλάω is "talar" as much as "tala") */
+export function typingAnswer(w) {
+  return formKind(w) === "verb" && w.forms[1] !== "-" ? `${w.sv} / ${w.forms[1]}` : w.sv;
 }
 
 // ---------------------------------------------------------------------------

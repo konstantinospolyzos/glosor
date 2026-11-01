@@ -1,8 +1,8 @@
 // Words: the chapters, a search over every word, adding a list, editing and sharing a chapter.
-import { h, icon, sheet, alertBox, toast, caption, footer, group, shareText, pickFile } from "../ui.js";
+import { h, icon, sheet, alertBox, toast, caption, footer, group, shareText, pickFile, segmented } from "../ui.js";
 import { store } from "../store.js";
 import { allWords } from "../data.js";
-import { parseWordList, planAdd, chapterText, applyEdit, summarize, level, core, fold, EXAMPLE } from "../core.js";
+import { parseWordList, planAdd, chapterText, applyEdit, matchWords, sameName, summarize, level, core, fold, EXAMPLE } from "../core.js";
 import { currentRecords, levelBar, dot, wordText, speakButton, setSelection, plural, LEVELS } from "./common.js";
 import { speak } from "../speech.js";
 
@@ -56,6 +56,7 @@ function wordRow(w, records, chapterName = "") {
     dot(level(records[w.id])),
     h("span", { class: "word-texts" },
       wordText(w.sv, "word-sv"),
+      w.forms ? h("span", { class: "word-forms" }, w.forms.slice(1).filter((f) => f !== "-").join(" · ")) : null,
       h("span", { class: "word-el" }, w.el, chapterName ? h("span", { class: "word-chapter" }, ` · ${chapterName}`) : null)),
     speakButton(w.sv, 18, "row-speaker"));
 }
@@ -170,27 +171,50 @@ export function openAddWords(ctx, prefill = "") {
   const name = h("input", { class: "form-input", type: "text", value: nextName(), autocomplete: "off", "aria-label": "Chapter name" });
   const nameRow = group(h("label", { class: "form-row" }, h("span", { class: "form-label" }, "Chapter"), name));
   const preview = h("div", { class: "preview" });
-  let plan = [];
+  let plan = [], replacements = [], replace = null;     // replace: null until chosen (then it follows the paste)
   let sh = null;
+  // a chapter you already have: add only its new words, or replace it (an updated list, word forms added...)
+  const modeSlot = h("div", { class: "mode-slot" });
 
   const update = () => {
     const { chapters, skipped } = parseWordList(text.value);
     nameRow.hidden = !chapters.some((c) => !c.name);
-    plan = planAdd(store.data.chapters, chapters, name.value.trim() || nextName());
-    const total = plan.reduce((a, p) => a + p.words.length, 0);
-    const rows = plan.map((p) => h("div", { class: "preview-row" },
-      icon(p.words.length ? "check" : "info", 18, p.words.length ? "ok" : "muted"),
-      h("span", null, h("b", null, p.name), " · ",
-        !p.words.length ? `nothing new (all ${p.dupes} already there)`
-          : p.target ? `adds ${plural(p.words.length, "word")}${p.dupes ? ` (${p.dupes} already there)` : ""}`
-            : `new chapter, ${plural(p.words.length, "word")}`)));
+    const defaultName = name.value.trim() || nextName();
+    plan = planAdd(store.data.chapters, chapters, defaultName);
+    const named = (pc, i) => pc.name || (i === 0 ? defaultName : `${defaultName} (${i + 1})`);
+    replacements = plan.filter((p) => p.target).map((p) => {
+      const words = matchWords(p.target.words, chapters.filter((pc, i) => sameName(named(pc, i), p.name)).flatMap((pc) => pc.words));
+      const kept = words.filter((w) => p.target.words.some((o) => o.id === w.id)).length;
+      const forms = words.some((w) => w.forms && !p.target.words.find((o) => o.id === w.id)?.forms);
+      return { target: p.target, words, kept, removed: p.target.words.length - kept, forms };
+    });
+    const replacing = replacements.length && (replace ?? replacements.some((r) => r.forms));
+    modeSlot.replaceChildren(...(replacements.length ? [segmented(["Add new words", "Replace chapter"], replacing ? 1 : 0, (i) => { replace = i === 1; update(); }, "full"),
+      h("div", { class: "mode-note" }, replacing
+        ? "The chapter becomes exactly this list. Words still in it keep their progress."
+        : "Only words the chapter doesn't have yet are added.")] : []));
+    const total = replacing
+      ? replacements.reduce((a, r) => a + r.words.length, 0) + plan.filter((p) => !p.target).reduce((a, p) => a + p.words.length, 0)
+      : plan.reduce((a, p) => a + p.words.length, 0);
+    const rows = plan.map((p) => {
+      const r = replacing && replacements.find((x) => x.target === p.target);
+      const ok = r ? r.words.length : p.words.length;
+      return h("div", { class: "preview-row" },
+        icon(ok ? "check" : "info", 18, ok ? "ok" : "muted"),
+        h("span", null, h("b", null, p.name), " · ",
+          r ? `replaced: ${plural(r.words.length, "word")}, ${r.kept} keep their progress${r.removed ? `, ${r.removed} removed` : ""}`
+            : !p.words.length ? `nothing new (all ${p.dupes} already there)`
+              : p.target ? `adds ${plural(p.words.length, "word")}${p.dupes ? ` (${p.dupes} already there)` : ""}`
+                : `new chapter, ${plural(p.words.length, "word")}`));
+    });
     const skip = skipped.length ? h("div", { class: "preview-skip" },
       h("b", null, `Left out ${plural(skipped.length, "line")}:`),
       skipped.slice(0, 4).map((s) => h("div", null, `“${s.line}”: ${s.why}`)),
       skipped.length > 4 ? h("div", null, `and ${skipped.length - 4} more`) : null) : null;
-    preview.replaceChildren(...rows, skip);
+    preview.replaceChildren(...rows, ...(skip ? [skip] : []));
     preview.hidden = !rows.length && !skip;
-    sh?.setRight({ text: total ? `Add ${total}` : "Add", disabled: !total });
+    sh?.setRight({ text: !total ? "Add" : replacing ? "Save" : `Add ${total}`, disabled: !total });
+    sh && (sh.replacing = replacing);
   };
   text.addEventListener("input", update);
   name.addEventListener("input", update);
@@ -223,21 +247,25 @@ export function openAddWords(ctx, prefill = "") {
   const body = h("div", { class: "form" },
     h("div", { class: "add-help" },
       "Paste the word list: ", h("b", null, "one word a line, Swedish = Greek"), " (either order). A first line like ",
-      h("b", null, "Kapitel 3"), " names the chapter; a name you already have gets the new words added."),
+      h("b", null, "Kapitel 3"), " names the chapter. Word forms go between | : ", h("b", null, "en kock | kocken | kockar | kockarna"), "."),
     h("div", { class: "pill-row" },
       h("button", { type: "button", class: "pill-btn", onclick: paste }, icon("paste", 17), "Paste"),
       h("button", { type: "button", class: "pill-btn", onclick: fromFile }, icon("doc", 17), "From a file")),
     group(h("div", { class: "text-wrap" }, text)),
     nameRow,
+    modeSlot,
     preview);
   sh = sheet({ title: "Add words", body, left: { text: "Cancel" }, right: { text: "Add", bold: true, disabled: true, onClick: (api) => {
-    const doing = plan.filter((p) => p.words.length);
-    if (!doing.length) return;
-    store.addChapters(doing);
-    setSelection(doing.map((p) => p.id));
-    const n = doing.reduce((a, p) => a + p.words.length, 0);
+    const replacing = Boolean(api.replacing);
+    const doing = plan.filter((p) => p.words.length && !(replacing && p.target));
+    const swaps = replacing ? replacements.filter((r) => r.words.length) : [];
+    if (!doing.length && !swaps.length) return;
+    if (doing.length) store.addChapters(doing);
+    for (const r of swaps) store.saveChapter({ ...r.target, words: r.words });
+    setSelection([...doing.map((p) => p.id), ...swaps.map((r) => r.target.id)]);
+    const n = doing.reduce((a, p) => a + p.words.length, 0) + swaps.reduce((a, r) => a + r.words.length, 0);
     api.close();
-    toast(`✓  ${plural(n, "word")} added${doing.length === 1 ? ` to ${doing[0].name}` : ""}`);
+    toast(swaps.length && !doing.length ? `✓  ${swaps.map((r) => r.target.name).join(", ")} updated` : `✓  ${plural(n, "word")} saved`);
     ctx.go("practise");
   } } });
   update();
