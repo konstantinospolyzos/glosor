@@ -9,7 +9,15 @@ export const MODES = {
   "sv-el": { key: "sv-el", title: "Svenska → Ελληνικά", text: "See the Swedish, pick the Greek", ask: "sv", answer: "el", type: false },
   "el-sv": { key: "el-sv", title: "Ελληνικά → Svenska", text: "See the Greek, pick the Swedish", ask: "el", answer: "sv", type: false },
   type: { key: "type", title: "Skriv på svenska", text: "See the Greek, type the Swedish", ask: "el", answer: "sv", type: true },
+  // against the clock: pick ones, Swedish → Greek and Greek → Swedish mixed
+  time: { key: "time", title: "Tidsjakt", text: "As many words as you can in 60 seconds", ask: "sv", answer: "el", type: false, timed: true },
 };
+
+export const TIME_LIMIT = 60;      // seconds in a Tidsjakt
+export const TIME_OPTIONS = 4;     // fewer answers to pick from: it's about speed
+
+/** Your best Tidsjakt: the most right answers in one run */
+export const bestTime = (rounds) => (rounds || []).filter((r) => r.mode === "time").reduce((m, r) => Math.max(m, r.right || 0), 0);
 
 // How well a word is known: 0 (new, or missed last time) up to 5. A right pick moves it up one,
 // a right typed answer two (typing is harder), a miss back to 0.

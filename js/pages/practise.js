@@ -8,8 +8,8 @@ import { openAddWords, addExample } from "./words.js";
 
 export const ROUND_SIZES = [[10, "10"], [20, "20"], [0, "All"]];
 
-// [mode, tile colour, tile text (none: a keyboard)]
-const EXERCISES = [["sv-el", "ex-blue", "Å→α"], ["el-sv", "ex-indigo", "α→Å"], ["type", "ex-orange", ""]];
+// [mode, tile colour, tile text or icon name]
+const EXERCISES = [["sv-el", "ex-blue", "Å→α"], ["el-sv", "ex-indigo", "α→Å"], ["type", "ex-orange", "keyboard"], ["time", "ex-green", "timer"]];
 
 export function renderPractise(ctx) {
   const data = store.data;
@@ -50,7 +50,7 @@ export function renderPractise(ctx) {
     const M = MODES[mode];
     const off = !M.type && tooFew;
     return h("button", { type: "button", class: "exercise", disabled: off || null, onclick: () => ctx.startQuiz(mode) },
-      h("span", { class: `ex-icon ${tone}` }, glyph ? h("span", { class: "ex-glyph" }, glyph) : icon("keyboard", 26)),
+      h("span", { class: `ex-icon ${tone}` }, /^[a-z]+$/.test(glyph) ? icon(glyph, 26) : h("span", { class: "ex-glyph" }, glyph)),
       h("span", { class: "ex-text" }, h("span", { class: "ex-title" }, M.title), h("span", { class: "ex-sub" }, off ? "Needs at least two words" : M.text)),
       icon("chevron", 16, "chev"));
   }));

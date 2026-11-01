@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseWordList, splitLine, planAdd, applyEdit, chapterText, checkTyped, nextBox, level, summarize, pickRound,
-  pickOptions, streak, alternatives, speakable, splitNote, distance, isMistake, EXAMPLE, kindOf,
+  pickOptions, streak, bestTime, alternatives, speakable, splitNote, distance, isMistake, EXAMPLE, kindOf,
 } from "../js/core.js";
 import { applyOp, emptyData, normalize } from "../js/data.js";
 
@@ -293,4 +293,9 @@ test("a damaged file is tidied, a wrong one refused", () => {
   assert.deepEqual(d.people, [{ id: "p1", name: "Me" }]);
   assert.deepEqual(d.progress.p1.words.w1, { b: 5, r: 2, a: 0, w: 0, t: 0 });
   assert.deepEqual(d.progress.p1.days, ["2026-11-01"]);
+});
+
+test("best Tidsjakt score", () => {
+  assert.equal(bestTime([]), 0);
+  assert.equal(bestTime([{ mode: "time", right: 12 }, { mode: "sv-el", right: 30 }, { mode: "time", right: 17 }]), 17);
 });

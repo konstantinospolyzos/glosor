@@ -167,6 +167,7 @@ body.welcome-mode #navbar, body.welcome-mode #tabbar { display: none; }
 .ex-blue { background: linear-gradient(180deg, #3D9BFF, #006AE0); }
 .ex-indigo { background: linear-gradient(180deg, #7A78F0, #4B48C9); }
 .ex-orange { background: linear-gradient(180deg, #FFB340, #F08A00); }
+.ex-green { background: linear-gradient(180deg, #4CD964, #1FA83C); }
 .ex-glyph { font-size: 15.5px; font-weight: 800; letter-spacing: -0.02em; }
 .ex-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ex-title { font-size: 17px; font-weight: 600; }
@@ -398,3 +399,15 @@ body.welcome-mode #navbar, body.welcome-mode #tabbar { display: none; }
 .sum-perfect { font-size: 15px; color: var(--up-fg); font-weight: 600; margin-top: 6px; }
 .sum-buttons { align-self: stretch; display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
 .sum-caption + .sum-list { margin-bottom: 8px; }
+
+/* ---------- Tidsjakt ---------- */
+.time-fill { transition: width 0.1s linear; }
+.time-fill.low { background: var(--red); }
+.time-count { min-width: 52px; font-variant-numeric: tabular-nums; }
+.time-score { text-align: center; font-size: 15px; color: var(--gray); font-weight: 600; margin-bottom: -4px; }
+.time-score span { font-size: 22px; color: var(--green); font-weight: 800; }
+.time-big { color: var(--green); margin: 16px 0 4px; }
+.time-intro .sum-sub { max-width: 340px; text-align: center; line-height: 1.45; }
+.time-best { font-size: 15px; font-weight: 600; color: var(--label2); margin-top: 8px; }
+.time-result { font-size: 72px; line-height: 1; font-weight: 800; color: var(--green); margin-top: 20px; }
+.mode-time .opt { min-height: 56px; }

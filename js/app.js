@@ -8,6 +8,7 @@ import { renderWords, openAddWords } from "./pages/words.js";
 import { renderWelcome } from "./pages/welcome.js";
 import { openSettings } from "./pages/settings.js";
 import { startQuiz } from "./pages/quiz.js";
+import { startTimed } from "./pages/timed.js";
 import { currentPerson, currentRecords, selection, poolFor } from "./pages/common.js";
 
 const TABS = [
@@ -47,6 +48,7 @@ function roundWords() {
 function startRound(mode) {
   const { words, pool, all } = roundWords();
   if (!words.length) return;
+  if (mode === "time") { startTimed({ pool, all, person: currentPerson(), repick: roundWords, onEnd: () => render() }); return; }
   startQuiz({ mode, words, pool, all, person: currentPerson(), repick: roundWords, onEnd: () => render() });
 }
 
