@@ -13,7 +13,7 @@ export const ROUND_SIZES = [[10, "10"], [20, "20"], [0, "All"]];
 const EXERCISES = [
   ["Words", [["sv-el", "ex-blue", "Å→α"], ["el-sv", "ex-indigo", "α→Å"], ["type", "ex-orange", "keyboard"], ["listen", "ex-teal", "speaker"]]],
   ["Grammar", [["ovning", "ex-red", "doc"], ["gender", "ex-pink", "en/ett"]]],
-  ["Böj ordet", [["bestamd", "ex-purple", "-en"], ["verb", "ex-violet", "tala!"], ["forms", "ex-grape", "edit"]]],
+  ["Böj ordet", [["bestamd", "ex-purple", "-en"], ["plural", "ex-mint", "-ar"], ["verb", "ex-violet", "tala!"], ["forms", "ex-grape", "edit"]]],
   ["Game", [["time", "ex-green", "timer"]]],
 ];
 
@@ -64,6 +64,7 @@ export function renderPractise(ctx) {
     if (M.gender) return questionsFor("gender", pool).length ? null : "No en/ett words in the chosen chapters";
     if (M.forms) return questionsFor(M.key, pool).length ? null
       : M.drill === "bestamd" ? "No nouns with their forms in these chapters yet"
+      : M.drill === "plural" ? "No nouns with a plural in these chapters yet"
       : M.drill === "verb" ? "No verbs with their forms in these chapters yet" : "No word forms in these chapters yet";
     if (!pool.length) return "No words in the chosen chapters yet";
     if (M.listen && !canSpeak()) return "This phone can't read words aloud";

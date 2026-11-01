@@ -364,6 +364,22 @@ test("Böj ordet drills: Bestämd form (plural on or off) and Infinitiv & impera
   assert.equal(formQuestion(kock, () => 0.5).tip, undefined, "Alla former: no rule tips");
 });
 
+test("Böj ordet: Singular & plural, both ways", () => {
+  const [kock, tala, stor, mat, barn] = parseWordList(`${FORMS}\nett barn | barnet | barn | barnen = ένα παιδί`).chapters[0].words.map((w, i) => ({ ...w, id: `w${i}` }));
+  const toPlural = formQuestion(kock, () => 0, "plural");
+  assert.deepEqual([toPlural.id, toPlural.prompt, toPlural.sv, toPlural.label, toPlural.fb], ["w0#p", "en kock", "kockar", "plural", "en kock → kockar"]);
+  assert.match(toPlural.tip, /-ar/);
+  const toSingular = formQuestion(kock, () => 0.9, "plural");
+  assert.deepEqual([toSingular.prompt, toSingular.sv, toSingular.label, toSingular.fb], ["kockar", "en kock", "singular", "kockar → en kock"]);
+  assert.match(toSingular.tip, /en or ett/);
+  assert.equal(checkTyped("en kock", toSingular.sv).result, "right");
+  assert.equal(checkTyped("kock", toSingular.sv).result, "right", "the article is welcome, not needed");
+  assert.equal(checkTyped("ett kock", toSingular.sv).result, "almost", "the wrong en/ett is almost");
+  assert.deepEqual([formQuestion(barn, () => 0, "plural").sv, formQuestion(barn, () => 0.9, "plural").sv], ["barn", "ett barn"]);
+  assert.equal(formQuestion(mat, Math.random, "plural"), null, "no plural: not asked");
+  for (const w of [tala, stor]) assert.equal(formQuestion(w, Math.random, "plural"), null, "nouns only");
+});
+
 test("en or ett", () => {
   assert.deepEqual(genderOf({ sv: "(ett) kaffe" }), { article: "ett", noun: "kaffe" });
   assert.deepEqual(genderOf({ sv: "en kock (kockar)" }), { article: "en", noun: "kock" });
