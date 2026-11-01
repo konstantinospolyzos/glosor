@@ -7,7 +7,10 @@ Practise the Swedish words from class on your phone:
 3. **Skriv på svenska**: see the Greek word, type the Swedish (with å ä ö keys)
 4. **Lyssna**: hear the Swedish word, pick the Greek
 5. **En eller ett?**: is it en or ett?
-6. **Böj ordet**: type a word's other forms (plural, the …, verb tenses, imperative)
+6. **Böj ordet**: type a word's other forms, three ways:
+   - **Bestämd form**: en kock → kocken (switch on *Plural too* for kockar, kockarna)
+   - **Infinitiv & imperativ**: from the present, talar → tala and tala!
+   - **Alla former**: any form, past tenses and adjectives too
 7. **Övningar**: sentence exercises per chapter (fill in the word, pick the right one, build the sentence from the Greek)
 8. **Tidsjakt**: as many words as you can in 60 seconds, both directions mixed; your best score is kept
 

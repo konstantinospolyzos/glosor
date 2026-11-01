@@ -2,7 +2,7 @@
 // round and the wrong options for the pick-one exercises. No page code here, so the tests run it in Node.
 
 export const APP_NAME = "Glosor";
-export const APP_VERSION = "1.2.1";
+export const APP_VERSION = "1.3";
 
 /** The three exercises. ask: the side you see; answer: the side you give. */
 export const MODES = {
@@ -12,7 +12,10 @@ export const MODES = {
   listen: { key: "listen", title: "Lyssna", text: "Hear the Swedish, pick the Greek", ask: "sv", answer: "el", type: false, listen: true },
   gender: { key: "gender", title: "En eller ett?", text: "Is it en or ett?", ask: "sv", answer: "sv", type: false, gender: true },
   ovning: { key: "ovning", title: "Övningar", text: "Sentences on each chapter's grammar", ask: "sv", answer: "sv", type: true, ovning: true },
-  forms: { key: "forms", title: "Böj ordet", text: "Plural, the …, verb forms: type them", ask: "sv", answer: "sv", type: true, forms: true },
+  // Böj ordet: type a form of the word. drill: which forms (see formQuestion)
+  bestamd: { key: "bestamd", title: "Bestämd form", text: "en kock → kocken", ask: "sv", answer: "sv", type: true, forms: true, drill: "bestamd" },
+  verb: { key: "verb", title: "Infinitiv & imperativ", text: "talar → tala, tala!", ask: "sv", answer: "sv", type: true, forms: true, drill: "verb" },
+  forms: { key: "forms", title: "Alla former", text: "Every form: plural, past tense, adjectives", ask: "sv", answer: "sv", type: true, forms: true, drill: "all" },
   // against the clock: pick ones, Swedish → Greek and Greek → Swedish mixed
   time: { key: "time", title: "Tidsjakt", text: "As many words as you can in 60 seconds", ask: "sv", answer: "el", type: false, timed: true },
 };
@@ -510,21 +513,48 @@ export function formKind(w) {
   return null;
 }
 
-/** A "Böj ordet" question: one word, one form asked. Verbs sometimes give the present and ask the infinitive. */
-export function formQuestion(w, rnd = Math.random) {
+/** Each Böj ordet drill: its question ids ("<word id>#f") and the words it asks */
+export const FORM_DRILLS = { all: "f", bestamd: "b", verb: "v" };
+
+const FORM_TIPS = {
+  noun: [null,
+    "The …: en-words take -en or -n (en kock → kocken, en flicka → flickan), ett-words -et or -t (ett hus → huset, ett äpple → äpplet).",
+    "Plural: -or (flicka → flickor), -ar (kock → kockar), -er (park → parker), -n (äpple → äpplen), or no ending (hus → hus).",
+    "The … in the plural: kockar → kockarna, parker → parkerna, äpplen → äpplena, hus → husen."],
+  verb: ["Infinitive from the present: talar → tala, köper → köpa, bor → bo.", null, null, null,
+    "Imperative: the present without -r (talar → tala!, bor → bo!) or without -er (köper → köp!)."],
+};
+
+/**
+ * A Böj ordet question: one word, one form asked.
+ * drill "all": any form (verbs sometimes give the present and ask the infinitive);
+ * "bestamd": nouns, the … (with opts.plural also the plural and the … plural), given "en kock";
+ * "verb": verbs, the infinitive and the imperative, given the present.
+ */
+export function formQuestion(w, rnd = Math.random, drill = "all", opts = {}) {
   const kind = formKind(w);
   if (!kind) return null;
   const f = w.forms;
   const ok = (t) => f[t] && f[t] !== "-";
-  const targets = (kind === "verb" ? [0, 1, 2, 3, 4] : kind === "noun" ? [1, 2, 3] : [1, 2]).filter(ok);
-  if (kind === "verb" && !ok(1)) targets.splice(targets.indexOf(0), 1);
+  let targets;
+  if (drill === "bestamd") {
+    if (kind !== "noun") return null;
+    targets = (opts.plural ? [1, 2, 3] : [1]).filter(ok);
+  } else if (drill === "verb") {
+    if (kind !== "verb") return null;
+    targets = (ok(1) ? [0, 4] : [4]).filter(ok);
+  } else {
+    targets = (kind === "verb" ? [0, 1, 2, 3, 4] : kind === "noun" ? [1, 2, 3] : [1, 2]).filter(ok);
+    if (kind === "verb" && !ok(1)) targets.splice(targets.indexOf(0), 1);
+  }
   if (!targets.length) return null;
   const t = targets[Math.floor(rnd() * targets.length)];
-  const given = kind === "verb" && t === 0 ? 1 : 0;
+  const given = kind === "verb" && (t === 0 || (drill === "verb" && ok(1))) ? 1 : 0;
   const [label, hint] = FORM_LABELS[kind][t];
+  const tip = drill === "all" ? "" : FORM_TIPS[kind]?.[t] || "";
   // "form", not "kind": a question with a kind is an Övning (fyll / välj / ordna)
-  return { id: `${w.id}#f`, word: w.id, sv: f[t], el: w.el, prompt: f[given], label, hint, form: kind,
-    fb: `${splitNote(f[given]).main} → ${f[t]}` };
+  return { id: `${w.id}#${FORM_DRILLS[drill] || "f"}`, word: w.id, sv: f[t], el: w.el, prompt: f[given], label, hint, form: kind,
+    fb: `${splitNote(f[given]).main} → ${f[t]}`, ...(tip ? { tip } : {}) };
 }
 
 /** En or ett: from "ett hus", "(ett) kaffe" */

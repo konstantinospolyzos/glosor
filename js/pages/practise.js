@@ -1,9 +1,9 @@
 // Practise: choose the words, then an exercise. Your progress underneath.
-import { h, icon, segmented, caption, alertBox } from "../ui.js";
+import { h, icon, segmented, caption, alertBox, toggle } from "../ui.js";
 import { store } from "../store.js";
 import { allWords } from "../data.js";
 import { MODES, summarize, streak, localDay, bestTime } from "../core.js";
-import { currentPerson, currentRecords, currentProgress, selection, setSelection, poolFor, mistakes, reviews, questionsFor, exercisesFor, levelBar, dot, plural, LEVELS } from "./common.js";
+import { currentPerson, currentRecords, currentProgress, selection, setSelection, poolFor, mistakes, reviews, questionsFor, exercisesFor, withPlural, levelBar, dot, plural, LEVELS } from "./common.js";
 import { canSpeak } from "../speech.js";
 import { openAddWords, addExample } from "./words.js";
 
@@ -12,7 +12,8 @@ export const ROUND_SIZES = [[10, "10"], [20, "20"], [0, "All"]];
 // [caption, [mode, tile colour, tile text or icon name]...]
 const EXERCISES = [
   ["Words", [["sv-el", "ex-blue", "Å→α"], ["el-sv", "ex-indigo", "α→Å"], ["type", "ex-orange", "keyboard"], ["listen", "ex-teal", "speaker"]]],
-  ["Grammar", [["ovning", "ex-red", "doc"], ["gender", "ex-pink", "en/ett"], ["forms", "ex-purple", "edit"]]],
+  ["Grammar", [["ovning", "ex-red", "doc"], ["gender", "ex-pink", "en/ett"]]],
+  ["Böj ordet", [["bestamd", "ex-purple", "-en"], ["verb", "ex-violet", "tala!"], ["forms", "ex-grape", "edit"]]],
   ["Game", [["time", "ex-green", "timer"]]],
 ];
 
@@ -61,7 +62,9 @@ export function renderPractise(ctx) {
       return n ? null : "No exercises in these chapters yet";
     }
     if (M.gender) return questionsFor("gender", pool).length ? null : "No en/ett words in the chosen chapters";
-    if (M.forms) return questionsFor("forms", pool).length ? null : "No word forms in these chapters yet";
+    if (M.forms) return questionsFor(M.key, pool).length ? null
+      : M.drill === "bestamd" ? "No nouns with their forms in these chapters yet"
+      : M.drill === "verb" ? "No verbs with their forms in these chapters yet" : "No word forms in these chapters yet";
     if (!pool.length) return "No words in the chosen chapters yet";
     if (M.listen && !canSpeak()) return "This phone can't read words aloud";
     return !M.type && tooFew ? "Needs at least two words" : null;
@@ -70,11 +73,17 @@ export function renderPractise(ctx) {
     const M = MODES[mode];
     const why = blocked(M);
     const nx = mode === "ovning" && !why ? exercisesFor(data, records, sel).length : 0;
-    const sub = why || (mode === "time" && best ? `${M.text} · best ${best}` : nx ? `${M.text} · ${nx}` : M.text);
-    return h("button", { type: "button", class: "exercise", disabled: why ? true : null, onclick: () => ctx.startQuiz(mode) },
+    const text = mode === "bestamd" && withPlural() ? "en kock → kocken, kockar, kockarna" : M.text;
+    const sub = why || (mode === "time" && best ? `${text} · best ${best}` : nx ? `${text} · ${nx}` : text);
+    const button = h("button", { type: "button", class: "exercise", disabled: why ? true : null, onclick: () => ctx.startQuiz(mode) },
       h("span", { class: `ex-icon ${tone}` }, /^[a-z]+$/.test(glyph) ? icon(glyph, 26) : h("span", { class: `ex-glyph ${glyph.length > 4 ? "small" : ""}` }, glyph)),
       h("span", { class: "ex-text" }, h("span", { class: "ex-title" }, M.title), h("span", { class: "ex-sub" }, sub)),
       icon("chevron", 16, "chev"));
+    if (mode !== "bestamd") return button;
+    // the plural switch, under its exercise
+    return [button, h("label", { class: "form-row switch-row ex-option" },
+      h("span", { class: "ex-option-text" }, h("span", null, "Plural too"), h("span", { class: "ex-sub" }, "kockar, kockarna")),
+      toggle(withPlural(), (on) => { store.setPref("plural", on); ctx.refresh(); }, "Bestämd form: plural too"))];
   };
   const groups = EXERCISES.flatMap(([name, list]) => [caption(name), h("div", { class: "exercises" }, list.map(card))]);
 

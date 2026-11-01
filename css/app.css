@@ -183,6 +183,11 @@ body.welcome-mode #navbar, body.welcome-mode #tabbar { display: none; }
 .ex-pink { background: linear-gradient(180deg, #FF5E80, #E0284F); }
 .ex-purple { background: linear-gradient(180deg, #C77DEB, #9A3FCB); }
 .ex-red { background: linear-gradient(180deg, #FF6B5E, #E0352B); }
+.ex-violet { background: linear-gradient(180deg, #A78BFA, #7046D9); }
+.ex-grape { background: linear-gradient(180deg, #D46FB8, #A23D8C); }
+.form-row.ex-option { margin-left: 74px; padding-left: 0; min-height: 52px; border-top: 0.5px solid var(--sep); }
+.ex-option + .exercise { box-shadow: inset 0 0.5px 0 var(--sep); }
+.ex-option-text { flex: 1; display: flex; flex-direction: column; gap: 1px; font-size: 16px; }
 .ex-glyph.small { font-size: 12.5px; }
 .ex-glyph { font-size: 15.5px; font-weight: 800; letter-spacing: -0.02em; }
 .ex-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }

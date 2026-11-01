@@ -139,7 +139,7 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
     if (word.prompt) {                  // En eller ett? and Böj ordet: a Swedish word, what's asked, and its meaning
       const { main } = splitNote(word.prompt);
       promptSlot.replaceChildren(h("div", { class: "q-card" },
-        h("div", { class: "q-lang" }, M.gender ? "En eller ett?" : "Böj ordet"),
+        h("div", { class: "q-lang" }, M.title),
         h("div", { class: `q-word ${sizeClass(main)}`, lang: "sv" }, main),
         h("div", { class: "q-meaning", lang: "el" }, word.el),
         M.forms ? h("div", { class: "q-ask" }, h("b", null, word.label), word.hint ? ` · ${word.hint}` : "") : null,
@@ -169,7 +169,8 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
       word ? h("div", { class: "fb-pair" },
         word.fb ? h("span", { class: "fb-sv" }, word.fb) : [wordText(word.sv, "fb-sv"), h("span", { class: "fb-eq" }, "="), h("span", { class: "fb-el" }, word.el)],
         speakButton(word.say || word.sv, 18, "fb-speak")) : null,
-      word?.tip ? h("div", { class: "fb-tip" }, icon("info", 16), h("span", null, word.tip)) : null,
+      // a sentence's tip always; a word form's rule only when it was missed
+      word?.tip && (word.kind || result !== "right") ? h("div", { class: "fb-tip" }, icon("info", 16), h("span", null, word.tip)) : null,
       extra);
   }
 

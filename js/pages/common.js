@@ -91,13 +91,18 @@ export function nameChip(refresh) {
 
 export const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/** Bestämd form: also the plural and the … plural (a switch on Practise; off at first) */
+export const withPlural = () => store.pref("plural", false);
+
 /**
- * What an exercise asks, from the chosen words: the words themselves, or for En eller ett? and Böj ordet one
- * question per word that has an en/ett or its forms (with its own progress: "<word id>#g", "<word id>#f").
+ * What an exercise asks, from the chosen words: the words themselves, or for En eller ett? and the Böj ordet
+ * drills one question per word that has an en/ett or the forms asked (each with its own progress:
+ * "<word id>#g", and "#f", "#b", "#v" for Alla former, Bestämd form, Infinitiv & imperativ).
  */
 export function questionsFor(mode, words) {
-  if (MODES[mode]?.gender) return words.map(genderQuestion).filter(Boolean);
-  if (MODES[mode]?.forms) return words.map((w) => formQuestion(w)).filter(Boolean);
+  const M = MODES[mode];
+  if (M?.gender) return words.map(genderQuestion).filter(Boolean);
+  if (M?.forms) return words.map((w) => formQuestion(w, Math.random, M.drill, { plural: withPlural() })).filter(Boolean);
   return words;
 }
 

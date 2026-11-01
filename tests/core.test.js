@@ -336,6 +336,33 @@ test("Böj ordet questions", () => {
   assert.equal(checkTyped("tala", typingAnswer(tala)).result, "right");
 });
 
+test("Böj ordet drills: Bestämd form (plural on or off) and Infinitiv & imperativ", () => {
+  const words = parseWordList(`${FORMS}\nheta | heter | hette | hetat | - = ονομάζομαι\nmåste | - | - | - | - = πρέπει`).chapters[0].words.map((w, i) => ({ ...w, id: `w${i}` }));
+  const [kock, tala, stor, mat, heta, maste] = words;
+  const seen = (w, drill, opts = {}) => new Set(Array.from({ length: 60 }, (_, i) => formQuestion(w, () => (i % 6) / 6, drill, opts)?.sv));
+
+  const b = formQuestion(kock, Math.random, "bestamd");
+  assert.deepEqual([b.id, b.prompt, b.sv, b.label, b.form], ["w0#b", "en kock", "kocken", "bestämd form", "noun"]);
+  assert.match(b.tip, /kocken/);
+  assert.deepEqual([...seen(kock, "bestamd")], ["kocken"], "plural off: only the …");
+  assert.deepEqual([...seen(kock, "bestamd", { plural: true })].sort(), ["kockar", "kockarna", "kocken"]);
+  assert.deepEqual([...seen(mat, "bestamd", { plural: true })], ["maten"], "no plural: just the …");
+  for (const w of [tala, stor, heta]) assert.equal(formQuestion(w, Math.random, "bestamd"), null, "nouns only");
+
+  const v = formQuestion(tala, () => 0.9, "verb");
+  assert.deepEqual([v.id, v.prompt, v.sv, v.label], ["w1#v", "talar", "tala!", "imperativ"]);
+  assert.match(v.tip, /without -r/);
+  const i = formQuestion(tala, () => 0, "verb");
+  assert.deepEqual([i.prompt, i.sv, i.label], ["talar", "tala", "infinitiv"]);
+  assert.equal(checkTyped("tala", i.sv).result, "right");
+  assert.equal(checkTyped("tala", v.sv).result, "right", "the ! isn't needed");
+  assert.deepEqual([...seen(heta, "verb")], ["heta"], "no imperative: only the infinitive");
+  assert.equal(formQuestion(maste, Math.random, "verb"), null, "neither form to ask");
+  for (const w of [kock, stor]) assert.equal(formQuestion(w, Math.random, "verb"), null, "verbs only");
+
+  assert.equal(formQuestion(kock, () => 0.5).tip, undefined, "Alla former: no rule tips");
+});
+
 test("en or ett", () => {
   assert.deepEqual(genderOf({ sv: "(ett) kaffe" }), { article: "ett", noun: "kaffe" });
   assert.deepEqual(genderOf({ sv: "en kock (kockar)" }), { article: "en", noun: "kock" });
