@@ -1,5 +1,5 @@
 // Practise: choose the words, then an exercise. Your progress underneath.
-import { h, icon, segmented, caption, alertBox, toggle } from "../ui.js";
+import { h, icon, segmented, caption, alertBox, toggle, toast } from "../ui.js";
 import { store } from "../store.js";
 import { allWords } from "../data.js";
 import { MODES, summarize, streak, localDay, bestTime } from "../core.js";
@@ -87,7 +87,13 @@ export function renderPractise(ctx) {
   };
   const groups = EXERCISES.flatMap(([name, list]) => [caption(name), h("div", { class: "exercises" }, list.map(card))]);
 
-  return [subtitle, caption("Words to practise"), words, ...groups, progressCard(person, records, due, () => pick("due"))];
+  // the review button sits at the bottom, the words and exercises at the top: choose, then go up there
+  const reviewDue = () => {
+    pick("due");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    toast(`${plural(due.length, "word")} chosen · pick an exercise`);
+  };
+  return [subtitle, caption("Words to practise"), words, ...groups, progressCard(person, records, due, reviewDue)];
 }
 
 function progressCard(person, records, due, pickDue) {
@@ -111,7 +117,7 @@ function progressCard(person, records, due, pickDue) {
     levelBar(s, 8),
     h("div", { class: "legend" }, legend),
     due.length ? h("button", { type: "button", class: "due-row", onclick: pickDue },
-      icon("sync", 18), h("span", null, `${plural(due.length, "word")} to review today`), icon("chevron", 14, "chev")) : null,
+      icon("sync", 18), h("span", { class: "due-text" }, `${plural(due.length, "word")} to review today`), icon("chevron", 14, "chev")) : null,
     last ? h("div", { class: "last-round" }, `Last round: ${last.right + last.almost} of ${last.n} right · ${MODES[last.mode]?.title || ""} · ${when(last.at)}`)
       : h("div", { class: "last-round" }, "Words move up each time you get them right, and come back more often when you miss them."));
 }

@@ -319,8 +319,9 @@ body.welcome-mode #navbar, body.welcome-mode #tabbar { display: none; }
 #toast { position: fixed; left: 50%; bottom: calc(var(--tab-h) + var(--safe-b) + 18px); z-index: 70;
   transform: translate(-50%, 20px); opacity: 0; transition: opacity 0.22s, transform 0.22s; pointer-events: none;
   background: rgba(30, 30, 32, 0.92); color: #fff; font-size: 14px; font-weight: 600; padding: 10px 16px; border-radius: 22px;
-  max-width: calc(100vw - 40px); text-align: center; }
+  width: max-content; max-width: calc(100vw - 40px); text-align: center; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-color-scheme: dark) { #toast { background: #48484A; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55); } }
 
 /* ---------- welcome ---------- */
 .welcome { min-height: 100vh; min-height: 100dvh; max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; align-items: center;
@@ -436,7 +437,7 @@ body.welcome-mode #navbar, body.welcome-mode #tabbar { display: none; }
 /* ---------- due today, word forms ---------- */
 .due-row { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 12px; padding: 10px 12px; border-radius: 10px;
   background: var(--info-bg); color: var(--blue); font-size: 15px; font-weight: 600; text-align: left; }
-.due-row span { flex: 1; }
+.due-row .due-text { flex: 1; }
 .due-row:active { opacity: 0.6; }
 .word-forms { font-size: 13.5px; color: var(--gray); }
 .mode-slot { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
