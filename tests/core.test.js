@@ -326,6 +326,8 @@ test("Böj ordet questions", () => {
   const [kock, tala, , mat] = parseWordList(FORMS).chapters[0].words.map((w, i) => ({ ...w, id: `w${i}` }));
   const q = formQuestion(kock, () => 0.5);                        // targets 1, 2, 3 -> the middle one
   assert.deepEqual([q.id, q.prompt, q.sv, q.label], ["w0#f", "en kock", "kockar", "plural"]);
+  assert.equal(q.form, "noun");
+  assert.equal(q.kind, undefined, "a word question has no kind: the quiz screen treats kind as an Övning");
   const inf = formQuestion(tala, () => 0);                        // the infinitive: given the present
   assert.deepEqual([inf.prompt, inf.sv, inf.label], ["talar", "tala", "infinitiv"]);
   for (let i = 0; i < 20; i++) assert.equal(formQuestion(mat).sv, "maten", "only the forms that exist");

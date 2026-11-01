@@ -2,7 +2,7 @@
 // underground works). Google Drive and Google sign-in always go to the network.
 // The Savings Tracker lives on the same website, so only this app's own caches are touched here.
 const PREFIX = "glosor-";
-const CACHE = `${PREFIX}v5`;
+const CACHE = `${PREFIX}v6`;
 const FILES = [
   "./", "index.html", "manifest.webmanifest", "css/app.css",
   "js/app.js", "js/core.js", "js/data.js", "js/store.js", "js/ui.js", "js/speech.js", "js/config.js",

@@ -2,7 +2,7 @@
 // round and the wrong options for the pick-one exercises. No page code here, so the tests run it in Node.
 
 export const APP_NAME = "Glosor";
-export const APP_VERSION = "1.2";
+export const APP_VERSION = "1.2.1";
 
 /** The three exercises. ask: the side you see; answer: the side you give. */
 export const MODES = {
@@ -522,7 +522,8 @@ export function formQuestion(w, rnd = Math.random) {
   const t = targets[Math.floor(rnd() * targets.length)];
   const given = kind === "verb" && t === 0 ? 1 : 0;
   const [label, hint] = FORM_LABELS[kind][t];
-  return { id: `${w.id}#f`, word: w.id, sv: f[t], el: w.el, prompt: f[given], label, hint, kind,
+  // "form", not "kind": a question with a kind is an Övning (fyll / välj / ordna)
+  return { id: `${w.id}#f`, word: w.id, sv: f[t], el: w.el, prompt: f[given], label, hint, form: kind,
     fb: `${splitNote(f[given]).main} → ${f[t]}` };
 }
 
