@@ -1,5 +1,5 @@
 // Pieces the pages share: who's practising, which words are chosen, word lines, the progress bar.
-import { h, icon, splitBar } from "../ui.js";
+import { h, icon, splitBar, alertBox, askText } from "../ui.js";
 import { store } from "../store.js";
 import { allWords } from "../data.js";
 import { isMistake, splitNote } from "../core.js";
@@ -57,6 +57,32 @@ export function speakButton(sv, size = 20, extra = "") {
   if (!canSpeak()) return null;
   return h("button", { type: "button", class: `speak-btn ${extra}`, "aria-label": "Listen",
     onclick: (ev) => { ev.stopPropagation(); speak(sv); } }, icon("speaker", size));
+}
+
+/**
+ * The name of who's practising, at the top of every page. With two or more people a tap switches who
+ * uses this phone; with one it renames (the first name from Google, or "Me" until you give one).
+ */
+export function nameChip(refresh) {
+  const data = store.data;
+  const me = currentPerson();
+  const unnamed = data.people.length === 1 && me.name === "Me";
+  const many = data.people.length > 1;
+  return h("button", { type: "button", class: `name-chip ${unnamed ? "unnamed" : ""}`, "aria-label": many ? "Who's practising" : "Your name",
+    onclick: async () => {
+      if (many) {
+        const id = await alertBox({ title: "Who's practising?", message: "Each person has their own progress.",
+          buttons: [...data.people.map((p) => ({ text: p.name, value: p.id, style: p.id === me.id ? "bold" : "" })),
+            { text: "Cancel", value: null, style: "cancel" }] });
+        if (id) { store.setPref("person", id); refresh(); }
+        return;
+      }
+      const name = await askText({ title: "Your name", value: unnamed ? "" : me.name, placeholder: "Your name" });
+      if (name) store.savePerson({ ...me, name });
+    } },
+  h("span", { class: "name-avatar" }, unnamed ? icon("people", 16) : me.name.trim()[0].toUpperCase()),
+  h("span", { class: "name-text" }, unnamed ? "Add your name" : me.name),
+  many ? icon("chevronDown", 13) : null);
 }
 
 export const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;

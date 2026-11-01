@@ -55,10 +55,7 @@ export function renderPractise(ctx) {
       icon("chevron", 16, "chev"));
   }));
 
-  const who = data.people.length > 1 ? h("button", { type: "button", class: "who-pill", onclick: () => choosePerson(ctx) },
-    icon("people", 16), `Practising: ${person.name}`, icon("chevronDown", 14)) : null;
-
-  return [subtitle, who, caption("Words to practise"), words, caption("Exercise"), exercises, progressCard(person, records)];
+  return [subtitle, caption("Words to practise"), words, caption("Exercise"), exercises, progressCard(person, records)];
 }
 
 function progressCard(person, records) {
@@ -83,16 +80,6 @@ function progressCard(person, records) {
     h("div", { class: "legend" }, legend),
     last ? h("div", { class: "last-round" }, `Last round: ${last.right + last.almost} of ${last.n} right · ${MODES[last.mode]?.title || ""} · ${when(last.at)}`)
       : h("div", { class: "last-round" }, "Words move up each time you get them right, and come back more often when you miss them."));
-}
-
-async function choosePerson(ctx) {
-  const data = store.data;
-  const id = await alertBox({ title: "Who's practising?", message: "Each person has their own progress.",
-    buttons: [...data.people.map((p) => ({ text: p.name, value: p.id, style: p.id === currentPerson().id ? "bold" : "" })),
-      { text: "Cancel", value: null, style: "cancel" }] });
-  if (!id) return;
-  store.setPref("person", id);
-  ctx.refresh();
 }
 
 function emptyPractise(ctx) {

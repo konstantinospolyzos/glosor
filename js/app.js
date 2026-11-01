@@ -9,7 +9,7 @@ import { renderWelcome } from "./pages/welcome.js";
 import { openSettings } from "./pages/settings.js";
 import { startQuiz } from "./pages/quiz.js";
 import { startTimed } from "./pages/timed.js";
-import { currentPerson, currentRecords, selection, poolFor } from "./pages/common.js";
+import { currentPerson, currentRecords, selection, poolFor, nameChip } from "./pages/common.js";
 
 const TABS = [
   { key: "practise", title: "Practise", icon: "cards", render: renderPractise },
@@ -115,7 +115,7 @@ function render() {
   statusPill.addEventListener("click", () => (store.mode === "drive" ? store.syncFromTap() : openSettings(context())));
   const showPill = current === "practise" || ["signin", "error"].includes(store.status.state);
   main.replaceChildren(h("div", { class: "page", dataset: { page: current } },
-    h("h1", { class: "large-title" }, tab.title),
+    h("div", { class: "title-row" }, h("h1", { class: "large-title" }, tab.title), nameChip(context().refresh)),
     h("div", { class: "subtitle" }, subtitle),
     showPill ? statusPill : null,
     ...content.flat().filter(Boolean)));

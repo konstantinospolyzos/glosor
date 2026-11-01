@@ -72,6 +72,16 @@ body.welcome-mode #navbar, body.welcome-mode #tabbar { display: none; }
 .status-pill.state-synced { color: var(--up-fg); background: var(--up-bg); }
 .status-pill.attention { color: var(--warn-fg); background: var(--warn-bg); font-weight: 600; }
 .status-pill.state-error { color: var(--down-fg); background: var(--down-bg); }
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.name-chip { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 55%; padding: 4px 12px 4px 4px;
+  border-radius: 999px; background: var(--card); color: var(--label); font-size: 15px; font-weight: 600; }
+.name-chip:active { opacity: 0.6; }
+.name-chip .icon { color: var(--gray); }
+.name-avatar { width: 30px; height: 30px; border-radius: 15px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, #2694E6, #005CA0); color: var(--yellow); font-size: 15px; font-weight: 800; }
+.name-chip.unnamed .name-avatar { background: var(--fill); }
+.name-chip.unnamed { color: var(--blue); }
+.name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .page > .section-caption { padding: 8px 4px 0; margin-bottom: -6px; }
 
 /* ---------- tab bar ---------- */
