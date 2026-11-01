@@ -272,7 +272,7 @@ class Store {
   /** plan: from planAdd() */
   addChapters(plan) {
     const created = new Date().toISOString().slice(0, 10);
-    this.commit({ type: "addWords", chapters: plan.map((p) => ({ id: p.id, name: p.name, created, words: p.words })) });
+    this.commit({ type: "addWords", chapters: plan.map((p) => ({ id: p.id, name: p.name, created, words: p.words, exercises: p.exercises || [] })) });
   }
   saveChapter(chapter) { this.commit({ type: "putChapter", chapter }); }
   deleteChapter(id) { this.commit({ type: "deleteChapter", id }); }

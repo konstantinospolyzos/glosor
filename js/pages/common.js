@@ -1,8 +1,8 @@
 // Pieces the pages share: who's practising, which words are chosen, word lines, the progress bar.
 import { h, icon, splitBar, alertBox, askText } from "../ui.js";
 import { store } from "../store.js";
-import { allWords } from "../data.js";
-import { isMistake, isReview, splitNote, formQuestion, genderQuestion, MODES, pickRound } from "../core.js";
+import { allWords, allExercises } from "../data.js";
+import { isMistake, isReview, splitNote, formQuestion, genderQuestion, exerciseQuestion, MODES, pickRound } from "../core.js";
 import { speak, canSpeak } from "../speech.js";
 
 export const LEVELS = {
@@ -30,7 +30,7 @@ export const reviews = (data, records) => allWords(data).filter((w) => isReview(
 export function selection(data, records) {
   const sel = store.pref("sel", "all");
   if (sel === "mistakes") return mistakes(data, records).length ? "mistakes" : "all";
-  if (sel === "due") return reviews(data, records).length ? "due" : "all";
+  if (sel === "due") return reviews(data, records).length || allExercises(data).some((x) => isReview(records[x.id])) ? "due" : "all";
   if (Array.isArray(sel)) {
     const ids = sel.filter((id) => data.chapters.some((c) => c.id === id));
     return ids.length ? ids : "all";
@@ -101,9 +101,19 @@ export function questionsFor(mode, words) {
   return words;
 }
 
+/** The sentence exercises for what's chosen: the chapters' exercises (Missed and Due today: those of all chapters) */
+export function exercisesFor(data, records, sel) {
+  if (sel === "mistakes") return allExercises(data).filter((x) => isMistake(records[x.id]));
+  if (sel === "due") return allExercises(data).filter((x) => isReview(records[x.id]));
+  if (Array.isArray(sel)) return data.chapters.filter((c) => sel.includes(c.id)).flatMap((c) => c.exercises || []);
+  return allExercises(data);
+}
+
 /** A round: the chosen words (pool), every word (all), and this round's questions */
 export function roundFor(mode, count = store.pref("count", 10)) {
   const data = store.data, records = currentRecords();
-  const pool = poolFor(data, records, selection(data, records));
-  return { pool, all: allWords(data), words: pickRound(questionsFor(mode, pool), records, count) };
+  const sel = selection(data, records);
+  const pool = poolFor(data, records, sel);
+  const questions = MODES[mode]?.ovning ? exercisesFor(data, records, sel).map(exerciseQuestion) : questionsFor(mode, pool);
+  return { pool, all: allWords(data), words: pickRound(questions, records, count) };
 }

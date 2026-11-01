@@ -1,7 +1,7 @@
 // The data file: chapters of words, the people practising, and each person's progress.
 // Every change is an "operation" (applyOp), so two phones can change the file at the same time:
 // the store replays the changes it hasn't saved yet on top of the newest copy from Google Drive.
-import { APP_NAME, MAX_BOX, nextBox, sameName, uid, wordKey } from "./core.js";
+import { APP_NAME, MAX_BOX, nextBox, sameName, uid, wordKey, exerciseKey, BLANK } from "./core.js";
 
 export const DATA_VERSION = 1;
 const DAYS_KEPT = 400;
@@ -12,6 +12,38 @@ export function emptyData() {
 }
 
 const text = (v) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "");
+
+/** A sentence exercise as stored (see parseExercise), or null when it isn't one */
+export function cleanExercise(x, id = x?.id) {
+  if (!x || typeof x !== "object" || typeof id !== "string" || !id) return null;
+  const t = (v) => (typeof v === "string" ? v.trim() : "");
+  const out = { id, kind: x.kind, text: t(x.text) };
+  if (!out.text) return null;
+  if (x.kind === "ordna") {
+    const alts = Array.isArray(x.alts) ? x.alts.map(t).filter(Boolean) : [];
+    if (alts.length) out.alts = alts;
+  } else if (x.kind === "välj") {
+    const options = Array.isArray(x.options) ? x.options.map(t).filter(Boolean) : [];
+    if (options.length < 2 || !out.text.includes(BLANK)) return null;
+    out.options = options;
+  } else if (x.kind === "fyll") {
+    out.answer = t(x.answer);
+    if (!out.answer || !out.text.includes(BLANK)) return null;
+    if (t(x.hint)) out.hint = t(x.hint);
+  } else return null;
+  if (t(x.el)) out.el = t(x.el);
+  if (t(x.tip)) out.tip = t(x.tip);
+  return out;
+}
+
+const cleanExercises = (list) => {
+  const ids = new Set();
+  return (Array.isArray(list) ? list : []).map((x) => {
+    const id = typeof x?.id === "string" && x.id && !ids.has(x.id) ? x.id : uid("x");
+    ids.add(id);
+    return cleanExercise(x, id);
+  }).filter(Boolean);
+};
 
 /** A word as stored: id, Swedish, Greek, and its forms when it has them (the first form is the Swedish) */
 export function cleanWord(w, id = w.id) {
@@ -52,7 +84,9 @@ export function normalize(raw) {
       wordIds.add(wid);
       words.push(cleanWord(w, wid));
     }
-    chapters.push({ id, name: text(c.name) || "Untitled", created: typeof c.created === "string" ? c.created : null, words });
+    const exercises = cleanExercises(c.exercises);
+    chapters.push({ id, name: text(c.name) || "Untitled", created: typeof c.created === "string" ? c.created : null, words,
+      ...(exercises.length ? { exercises } : {}) });
   }
   const personIds = new Set();
   const people = (Array.isArray(raw.people) ? raw.people : []).filter((p) => p && typeof p.id === "string" && p.id && !personIds.has(p.id))
@@ -71,6 +105,7 @@ export function describeData(d) {
 }
 
 export const allWords = (d) => d.chapters.flatMap((c) => c.words);
+export const allExercises = (d) => d.chapters.flatMap((c) => c.exercises || []);
 
 /** Apply one change to a copy of the data */
 export function applyOp(data, op) {
@@ -91,11 +126,19 @@ export function applyOp(data, op) {
           have.add(wordKey(w));
           ids.add(w.id);
         }
+        const haveX = new Set((ch.exercises || []).map(exerciseKey));
+        for (const x of c.exercises || []) {
+          const clean = cleanExercise(x);
+          if (!clean || haveX.has(exerciseKey(clean))) continue;
+          ch.exercises = [...(ch.exercises || []), clean];
+          haveX.add(exerciseKey(clean));
+        }
       }
       break;
     case "putChapter": {        // renamed or edited
+      const exercises = cleanExercises(op.chapter.exercises);
       const ch = { id: op.chapter.id, name: text(op.chapter.name) || "Untitled", created: op.chapter.created || null,
-        words: op.chapter.words.map((w) => cleanWord(w)) };
+        words: op.chapter.words.map((w) => cleanWord(w)), ...(exercises.length ? { exercises } : {}) };
       const i = d.chapters.findIndex((x) => x.id === ch.id);
       if (i >= 0) d.chapters[i] = ch; else d.chapters.push(ch);
       break;

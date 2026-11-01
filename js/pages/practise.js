@@ -3,7 +3,7 @@ import { h, icon, segmented, caption, alertBox } from "../ui.js";
 import { store } from "../store.js";
 import { allWords } from "../data.js";
 import { MODES, summarize, streak, localDay, bestTime } from "../core.js";
-import { currentPerson, currentRecords, currentProgress, selection, setSelection, poolFor, mistakes, reviews, questionsFor, levelBar, dot, plural, LEVELS } from "./common.js";
+import { currentPerson, currentRecords, currentProgress, selection, setSelection, poolFor, mistakes, reviews, questionsFor, exercisesFor, levelBar, dot, plural, LEVELS } from "./common.js";
 import { canSpeak } from "../speech.js";
 import { openAddWords, addExample } from "./words.js";
 
@@ -12,7 +12,7 @@ export const ROUND_SIZES = [[10, "10"], [20, "20"], [0, "All"]];
 // [caption, [mode, tile colour, tile text or icon name]...]
 const EXERCISES = [
   ["Words", [["sv-el", "ex-blue", "Å→α"], ["el-sv", "ex-indigo", "α→Å"], ["type", "ex-orange", "keyboard"], ["listen", "ex-teal", "speaker"]]],
-  ["Grammar", [["gender", "ex-pink", "en/ett"], ["forms", "ex-purple", "edit"]]],
+  ["Grammar", [["ovning", "ex-red", "doc"], ["gender", "ex-pink", "en/ett"], ["forms", "ex-purple", "edit"]]],
   ["Game", [["time", "ex-green", "timer"]]],
 ];
 
@@ -47,7 +47,7 @@ export function renderPractise(ctx) {
   const words = h("div", { class: "card pick-card" },
     h("div", { class: "pick-chips" },
       chip("All words", all.length, sel === "all", () => pick("all")),
-      data.chapters.map((c) => chip(c.name, c.words.length, chosen(c.id), () => toggleChapter(c.id))),
+      data.chapters.map((c) => chip(c.name, c.words.length || `${c.exercises?.length || 0} ex.`, chosen(c.id), () => toggleChapter(c.id))),
       due.length ? chip("Due today", due.length, sel === "due", () => pick("due"), "due") : null,
       missed.length ? chip("Missed", missed.length, sel === "mistakes", () => pick("mistakes"), "warn") : null),
     h("div", { class: "round-row" }, h("span", { class: "round-text" }, `Round: ${plural(roundN, "word")}`), sizes));
@@ -56,15 +56,21 @@ export function renderPractise(ctx) {
   const best = bestTime(currentProgress().rounds);
   // why an exercise can't start with the words chosen (or null when it can)
   const blocked = (M) => {
+    if (M.ovning) {
+      const n = exercisesFor(data, records, sel).length;
+      return n ? null : "No exercises in these chapters yet";
+    }
     if (M.gender) return questionsFor("gender", pool).length ? null : "No en/ett words in the chosen chapters";
     if (M.forms) return questionsFor("forms", pool).length ? null : "No word forms in these chapters yet";
+    if (!pool.length) return "No words in the chosen chapters yet";
     if (M.listen && !canSpeak()) return "This phone can't read words aloud";
     return !M.type && tooFew ? "Needs at least two words" : null;
   };
   const card = ([mode, tone, glyph]) => {
     const M = MODES[mode];
     const why = blocked(M);
-    const sub = why || (mode === "time" && best ? `${M.text} · best ${best}` : M.text);
+    const nx = mode === "ovning" && !why ? exercisesFor(data, records, sel).length : 0;
+    const sub = why || (mode === "time" && best ? `${M.text} · best ${best}` : nx ? `${M.text} · ${nx}` : M.text);
     return h("button", { type: "button", class: "exercise", disabled: why ? true : null, onclick: () => ctx.startQuiz(mode) },
       h("span", { class: `ex-icon ${tone}` }, /^[a-z]+$/.test(glyph) ? icon(glyph, 26) : h("span", { class: `ex-glyph ${glyph.length > 4 ? "small" : ""}` }, glyph)),
       h("span", { class: "ex-text" }, h("span", { class: "ex-title" }, M.title), h("span", { class: "ex-sub" }, sub)),

@@ -8,10 +8,14 @@ Practise the Swedish words from class on your phone:
 4. **Lyssna**: hear the Swedish word, pick the Greek
 5. **En eller ett?**: is it en or ett?
 6. **Böj ordet**: type a word's other forms (plural, the …, verb tenses, imperative)
-7. **Tidsjakt**: as many words as you can in 60 seconds, both directions mixed; your best score is kept
+7. **Övningar**: sentence exercises per chapter (fill in the word, pick the right one, build the sentence from the Greek)
+8. **Tidsjakt**: as many words as you can in 60 seconds, both directions mixed; your best score is kept
 
 Words come in chapters (one per word list from class), optionally with their forms:
 `en kock | kocken | kockar | kockarna`, `tala | talar | talade | talat | tala!`, `stor | stort | stora`.
+Exercise lines go in the same file:
+`[fyll] Jag ___ Maria. (heta) = heter // Με λένε Μαρία.`, `[välj] ___ bor du? = Var | Vad | Varifrån`,
+`[ordna] Varifrån kommer du? // Από πού είσαι;` (`!! a tip` after any of them).
 Every word moves up when you get it right, comes back more often when you miss it, and comes back after
 1, 2, 4, 7 and 14 days as you learn it ("Due today" on Practise). Data is a JSON file in your own Google Drive (or on the phone only), synced change by change,
 the same way as the Savings Tracker.

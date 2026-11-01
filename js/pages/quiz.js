@@ -1,6 +1,6 @@
 // The exercises: a full-screen round of questions, then what you got right and what to practise again.
 import { h, icon, alertBox } from "../ui.js";
-import { MODES, pickOptions, checkTyped, typingAnswer, core, splitNote, localDay, shuffle } from "../core.js";
+import { MODES, pickOptions, checkTyped, typingAnswer, core, splitNote, localDay, shuffle, sentenceTokens, checkOrder, EXERCISE_LABELS, BLANK } from "../core.js";
 import { store } from "../store.js";
 import { speak } from "../speech.js";
 import { wordText, speakButton, plural } from "./common.js";
@@ -76,7 +76,8 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
 
   const onKey = (ev) => {
     if (ev.key === "Escape") { closeBtn.click(); return; }
-    if (!current || M.type || document.querySelector(".alert-wrap")) return;
+    if (!current || document.querySelector(".alert-wrap")) return;
+    if (M.type && (!current.word.kind || current.word.kind === "fyll")) return;      // the answer box has the keys
     if (!current.done && /^[1-9]$/.test(ev.key)) current.choose(Number(ev.key) - 1);
     else if (current.done && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); next(); }
   };
@@ -115,6 +116,19 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
   }
 
   function showPrompt(word) {
+    if (word.kind) {                    // Övningar: a sentence with a gap, or the Greek of a sentence to build
+      const x = word.x;
+      const parts = x.text.split(BLANK);
+      const sentence = word.kind === "ordna"
+        ? h("div", { class: `q-word q-sentence ${x.el ? "" : "muted"}`, lang: x.el ? "el" : "sv" }, x.el || "Put the words in order")
+        : h("div", { class: "q-word q-sentence", lang: "sv" }, parts[0], h("span", { class: "q-blank" }), parts.slice(1).join(BLANK));
+      promptSlot.replaceChildren(h("div", { class: "q-card q-exercise" },
+        h("div", { class: "q-lang" }, EXERCISE_LABELS[word.kind]),
+        sentence,
+        word.kind !== "ordna" && x.el ? h("div", { class: "q-meaning", lang: "el" }, x.el) : null,
+        word.hint ? h("div", { class: "q-ask" }, "Word: ", h("b", null, word.hint)) : null));
+      return;
+    }
     if (M.listen) {                     // Lyssna: the word is heard, and shown once answered
       const play = h("button", { type: "button", class: "listen-btn", "aria-label": "Listen again", onclick: () => speak(word.sv) }, icon("speaker", 46));
       promptSlot.replaceChildren(h("div", { class: "q-card listen-card" },
@@ -154,7 +168,8 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
       why ? h("div", { class: "fb-why" }, why) : null,
       word ? h("div", { class: "fb-pair" },
         word.fb ? h("span", { class: "fb-sv" }, word.fb) : [wordText(word.sv, "fb-sv"), h("span", { class: "fb-eq" }, "="), h("span", { class: "fb-el" }, word.el)],
-        speakButton(word.sv, 18, "fb-speak")) : null,
+        speakButton(word.say || word.sv, 18, "fb-speak")) : null,
+      word?.tip ? h("div", { class: "fb-tip" }, icon("info", 16), h("span", null, word.tip)) : null,
       extra);
   }
 
@@ -163,7 +178,11 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
     clearTimeout(timer);
     showPrompt(word);
     footSlot.replaceChildren();
-    if (M.gender) askGender(word); else if (M.type) askTyped(word); else askChoice(word);
+    if (word.kind === "välj") askGiven(word);
+    else if (word.kind === "ordna") askOrder(word);
+    else if (M.gender) askGender(word);
+    else if (M.type) askTyped(word);
+    else askChoice(word);
   }
 
   function next() {
@@ -204,6 +223,61 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
     if (autoSpeak() && M.ask === "sv" && !M.listen) speak(word.sv);
   }
 
+  // -- Övningar: pick the word for the gap ----------------------------------------------
+  function askGiven(word) {
+    const right = word.x.options[0];
+    const options = shuffle(word.x.options);
+    const buttons = options.map((o, k) => h("button", { type: "button", class: "opt", lang: "sv", onclick: () => choose(k) },
+      h("span", { class: "opt-key", "aria-hidden": "true" }, String(k + 1)), h("span", { class: "opt-text" }, o)));
+    function choose(k) {
+      if (current.done || k >= options.length) return;
+      current.done = true;
+      const ok = core(options[k]) === core(right);
+      buttons[k].classList.add(ok ? "right" : "wrong");
+      buttons[options.indexOf(right)].classList.add("right");
+      buttons.forEach((b, j) => { if (j !== k && options[j] !== right) b.classList.add("dim"); });
+      answers.push({ id: word.id, res: ok ? "right" : "wrong" });
+      if (autoSpeak()) speak(word.say);
+      footSlot.replaceChildren(feedback(ok ? "right" : "wrong", "", word), h("button", { type: "button", class: "btn primary wide", onclick: next }, "Continue"));
+    }
+    current = { word, done: false, moved: false, choose };
+    answerSlot.replaceChildren(h("div", { class: "options" }, buttons));
+  }
+
+  // -- Övningar: build the sentence from its words -----------------------------------
+  function askOrder(word) {
+    const { words: target, end } = sentenceTokens(word.x.text);
+    let bank = target.map((t, i) => ({ t, i }));
+    for (let n = 0; n < 6 && bank.every((b, i) => b.i === i); n++) bank = shuffle(bank);
+    let line = [];
+    const lineEl = h("div", { class: "order-line", "aria-label": "Your sentence" });
+    const bankEl = h("div", { class: "order-bank" });
+    const checkBtn = h("button", { type: "button", class: "btn primary wide", onclick: () => check() }, "Check");
+    const clearBtn = h("button", { type: "button", class: "btn plain", onclick: () => { bank = [...bank, ...line]; line = []; draw(); } }, "Start again");
+    const tile = (w, onClick, cls = "") => h("button", { type: "button", class: `tile ${cls}`, lang: "sv", onclick: onClick }, w.t);
+    function draw() {
+      lineEl.replaceChildren(...line.map((w, k) => tile(w, () => { if (current.done) return; line.splice(k, 1); bank.push(w); draw(); })),
+        line.length ? h("span", { class: "order-end" }, end) : h("span", { class: "order-hint" }, "Tap the words in order"));
+      bankEl.replaceChildren(...bank.map((w, k) => tile(w, () => { if (current.done) return; bank.splice(k, 1); line.push(w); draw(); })));
+      checkBtn.disabled = Boolean(bank.length);
+      clearBtn.hidden = !line.length || current.done;
+    }
+    function check() {
+      if (current.done || bank.length) return;
+      current.done = true;
+      const ok = checkOrder(line.map((w) => w.t), word.x);
+      lineEl.classList.add(ok ? "right" : "wrong");
+      answers.push({ id: word.id, res: ok ? "right" : "wrong" });
+      if (autoSpeak()) speak(word.say);
+      checkBtn.remove();
+      clearBtn.remove();
+      footSlot.replaceChildren(feedback(ok ? "right" : "wrong", "", word), h("button", { type: "button", class: "btn primary wide", onclick: next }, "Continue"));
+    }
+    current = { word, done: false, moved: false, choose: () => {} };
+    answerSlot.replaceChildren(h("div", { class: "order" }, lineEl, bankEl, checkBtn, clearBtn));
+    draw();
+  }
+
   // -- en or ett ------------------------------------------------------------------
   function askGender(word) {
     const choices = ["en", "ett"];
@@ -229,6 +303,7 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
 
   // -- type it ------------------------------------------------------------------
   function askTyped(word) {
+    input.placeholder = word.kind ? "Skriv ordet…" : M.forms ? "Skriv formen…" : "Skriv på svenska…";
     input.value = "";
     input.className = "type-input";
     submitBtn.textContent = "Check";
@@ -249,7 +324,7 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
     input.classList.add(`is-${result}`);
     submitBtn.textContent = "Continue";
     dunnoBtn.hidden = true;
-    if (autoSpeak()) speak(word.sv);
+    if (autoSpeak()) speak(word.say || word.sv);
     // a right answer the list doesn't know (another word for it): count it yourself
     const fix = result !== "right" && typed.trim() ? keepFocus(h("button", { type: "button", class: "link-btn fb-fix", onclick: (ev) => {
       rec.res = "right";
@@ -285,10 +360,10 @@ export function startQuiz({ mode, words, pool, all, person, repick, onEnd }) {
         h("button", { type: "button", class: "btn plain wide", onclick: close }, "Done")),
       missed.length ? [
         h("div", { class: "sum-caption" }, "Words to practise · tap to hear"),
-        h("div", { class: "group sum-list" }, missed.map(([w, res]) => h("button", { type: "button", class: "word-row", onclick: () => speak(w.sv) },
+        h("div", { class: "group sum-list" }, missed.map(([w, res]) => h("button", { type: "button", class: "word-row", onclick: () => speak(w.say || w.sv) },
           h("span", { class: `dot ${res === "almost" ? "dot-almost" : "dot-wrong"}` }),
           h("span", { class: "word-texts" }, w.fb ? h("span", { class: "word-sv" }, w.fb) : wordText(w.sv, "word-sv"), h("span", { class: "word-el" }, w.el)),
-          speakButton(w.sv, 18, "row-speaker")))),
+          speakButton(w.say || w.sv, 18, "row-speaker")))),
       ] : null));
     stage.scrollTop = 0;
     progress();

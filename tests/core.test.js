@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseWordList, splitLine, planAdd, applyEdit, chapterText, checkTyped, nextBox, level, summarize, pickRound,
-  pickOptions, streak, bestTime, formKind, formQuestion, genderOf, genderQuestion, typingAnswer, isDue, isReview, matchWords, alternatives, speakable, splitNote, distance, isMistake, EXAMPLE, kindOf,
+  pickOptions, streak, bestTime, formKind, formQuestion, genderOf, genderQuestion, typingAnswer, isDue, isReview, matchWords, parseExercise, exerciseLine, sentenceTokens, checkOrder, exerciseQuestion, matchExercises, alternatives, speakable, splitNote, distance, isMistake, EXAMPLE, kindOf,
 } from "../js/core.js";
 import { applyOp, emptyData, normalize } from "../js/data.js";
 
@@ -364,4 +364,70 @@ test("replacing a chapter with its forms keeps the progress", () => {
   assert.equal(words[1].forms.length, 5);
   const d = normalize({ chapters: [{ id: "c", name: "K", words }] });
   assert.deepEqual(d.chapters[0].words[1].forms, ["tala", "talar", "talade", "talat", "tala!"]);
+});
+
+// ---------------------------------------------------------------------------
+// Övningar
+// ---------------------------------------------------------------------------
+const EX = `Kapitel 1
+hej = γεια
+[fyll] Jag ___ Maria. (heta) = heter // Με λένε Μαρία. !! Presens slutar på -r.
+[välj] ___ kommer du ifrån? = Varifrån | Var | Vad // Από πού είσαι;
+[ordna] Varifrån kommer du? // Από πού είσαι; !! Verbet står på plats 2.
+[ordna] ^Maria bor i Stockholm. || I Stockholm bor Maria. // Η Μαρία μένει στη Στοκχόλμη.`;
+
+test("exercise lines are read and written back", () => {
+  const { chapters, skipped } = parseWordList(EX);
+  assert.equal(skipped.length, 0);
+  const [fyll, valj, ordna, name] = chapters[0].exercises;
+  assert.deepEqual(fyll, { kind: "fyll", text: "Jag ___ Maria.", answer: "heter", hint: "heta", el: "Με λένε Μαρία.", tip: "Presens slutar på -r." });
+  assert.deepEqual(valj.options, ["Varifrån", "Var", "Vad"]);
+  assert.equal(ordna.text, "Varifrån kommer du?");
+  assert.deepEqual(name.alts, ["I Stockholm bor Maria."]);
+  assert.equal(chapters[0].words.length, 1, "the word line is still a word");
+  assert.equal(chapters[0].exercises.map(exerciseLine).join("\n"), EX.split("\n").slice(2).join("\n"));
+});
+
+test("exercise lines that can't be used say why", () => {
+  assert.match(parseExercise("[fyll] Jag heter Maria. = heter").error, /___/);
+  assert.match(parseExercise("[välj] Jag ___ Maria. = heter").error, /wrong one/);
+  assert.match(parseExercise("[foo] x").error, /Unknown/);
+  assert.equal(parseExercise("hej = γεια"), null);
+  const { skipped } = parseWordList("[fyll] utan lucka = x");
+  assert.equal(skipped.length, 1);
+});
+
+test("building a sentence", () => {
+  assert.deepEqual(sentenceTokens("Varifrån kommer du?"), { words: ["varifrån", "kommer", "du"], end: "?" });
+  assert.deepEqual(sentenceTokens("^Maria bor i Stockholm."), { words: ["Maria", "bor", "i", "Stockholm"], end: "." });
+  assert.deepEqual(sentenceTokens("Ja, jag är gift."), { words: ["ja,", "jag", "är", "gift"], end: "." });
+  const x = parseExercise("[ordna] ^Maria bor i Stockholm. || I Stockholm bor Maria.");
+  assert.equal(checkOrder(["Maria", "bor", "i", "Stockholm"], x), true);
+  assert.equal(checkOrder(["i", "Stockholm", "bor", "Maria"], x), true, "the other right order");
+  assert.equal(checkOrder(["bor", "Maria", "i", "Stockholm"], x), false);
+});
+
+test("exercises as questions, and kept through an edit", () => {
+  const x = { id: "x1", ...parseExercise("[fyll] Jag ___ Maria. (heta) = heter // Με λένε Μαρία.") };
+  const q = exerciseQuestion(x);
+  assert.deepEqual([q.id, q.sv, q.fb, q.hint], ["x1", "heter", "Jag heter Maria.", "heta"]);
+  assert.equal(checkTyped("heter", q.sv).result, "right");
+  const v = exerciseQuestion({ id: "x2", ...parseExercise("[välj] ___ kommer du ifrån? = Varifrån | Var") });
+  assert.equal(v.fb, "Varifrån kommer du ifrån?");
+  const kept = matchExercises([x], parseWordList(EX).chapters[0].exercises);
+  assert.equal(kept[0].id, "x1");
+  assert.notEqual(kept[1].id, "x1");
+});
+
+test("exercises are added to a chapter you have, and stored", () => {
+  const plan = planAdd([{ id: "c1", name: "Kapitel 1", words: [{ id: "w1", sv: "hej", el: "γεια" }] }], parseWordList(EX).chapters, "K");
+  assert.equal(plan[0].target.id, "c1");
+  assert.equal(plan[0].words.length, 0);
+  assert.equal(plan[0].exercises.length, 4);
+  let d = applyOp(emptyData(), { type: "addWords", chapters: [{ id: "c1", name: "Kapitel 1", words: [{ id: "w1", sv: "hej", el: "γεια" }] }] });
+  d = applyOp(d, { type: "addWords", chapters: plan });
+  d = applyOp(d, { type: "addWords", chapters: plan.map((p) => ({ ...p, exercises: p.exercises.map((e) => ({ ...e, id: e.id + "b" })) })) });
+  assert.equal(d.chapters[0].exercises.length, 4, "the same sentence once");
+  assert.equal(normalize(JSON.parse(JSON.stringify(d))).chapters[0].exercises.length, 4);
+  assert.equal(normalize({ chapters: [{ id: "c", name: "K", words: [], exercises: [{ id: "a", kind: "fyll", text: "no gap", answer: "x" }] }] }).chapters[0].exercises, undefined);
 });

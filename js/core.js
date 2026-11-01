@@ -2,7 +2,7 @@
 // round and the wrong options for the pick-one exercises. No page code here, so the tests run it in Node.
 
 export const APP_NAME = "Glosor";
-export const APP_VERSION = "1.1";
+export const APP_VERSION = "1.2";
 
 /** The three exercises. ask: the side you see; answer: the side you give. */
 export const MODES = {
@@ -11,6 +11,7 @@ export const MODES = {
   type: { key: "type", title: "Skriv på svenska", text: "See the Greek, type the Swedish", ask: "el", answer: "sv", type: true },
   listen: { key: "listen", title: "Lyssna", text: "Hear the Swedish, pick the Greek", ask: "sv", answer: "el", type: false, listen: true },
   gender: { key: "gender", title: "En eller ett?", text: "Is it en or ett?", ask: "sv", answer: "sv", type: false, gender: true },
+  ovning: { key: "ovning", title: "Övningar", text: "Sentences on each chapter's grammar", ask: "sv", answer: "sv", type: true, ovning: true },
   forms: { key: "forms", title: "Böj ordet", text: "Plural, the …, verb forms: type them", ask: "sv", answer: "sv", type: true, forms: true },
   // against the clock: pick ones, Swedish → Greek and Greek → Swedish mixed
   time: { key: "time", title: "Tidsjakt", text: "As many words as you can in 60 seconds", ask: "sv", answer: "el", type: false, timed: true },
@@ -155,20 +156,27 @@ export function parseWordList(text) {
     const hash = line.startsWith("#");
     line = line.replace(/^#+\s*/, "").replace(BULLET_RX, "").trim();
     if (!line) continue;
-    const p = hash ? null : splitLine(line);
-    if (p) {
-      if (!cur) { cur = { name: null, words: [] }; chapters.push(cur); }
+    const x = hash ? null : parseExercise(line);
+    const p = hash || x ? null : splitLine(line);
+    if (x) {
+      if (x.error) skipped.push({ line: raw.trim(), why: x.error });
+      else {
+        if (!cur) { cur = { name: null, words: [], exercises: [] }; chapters.push(cur); }
+        if (!cur.exercises.some((e) => exerciseKey(e) === exerciseKey(x))) cur.exercises.push(x);
+      }
+    } else if (p) {
+      if (!cur) { cur = { name: null, words: [], exercises: [] }; chapters.push(cur); }
       if (!cur.words.some((w) => wordKey(w) === wordKey(p))) cur.words.push(p);
     } else if (hash || TITLE_RX.test(line) || (first && !hasGreek(line))) {
       const name = clean(line);
-      if (cur && !cur.words.length) cur.name = name;          // two titles in a row: the last one names it
-      else { cur = { name, words: [] }; chapters.push(cur); }
+      if (cur && !cur.words.length && !cur.exercises.length) cur.name = name;   // two titles in a row: the last one names it
+      else { cur = { name, words: [], exercises: [] }; chapters.push(cur); }
     } else {
       skipped.push({ line: raw.trim(), why: hasGreek(line) ? "Couldn't tell the Swedish from the Greek" : "No Greek word in this line" });
     }
     first = false;
   }
-  return { chapters: chapters.filter((c) => c.words.length), skipped };
+  return { chapters: chapters.filter((c) => c.words.length || c.exercises.length), skipped };
 }
 
 /**
@@ -183,6 +191,8 @@ export function planAdd(chapters, parsed, defaultName) {
     const target = chapters.find((c) => sameName(c.name, name)) || null;
     const planned = out.find((o) => sameName(o.name, name));       // the same title twice in the paste
     const have = new Set([...(target?.words || []), ...(planned?.words || [])].map(wordKey));
+    const haveX = new Set([...(target?.exercises || []), ...(planned?.exercises || [])].map(exerciseKey));
+    const exercises = (pc.exercises || []).filter((x) => !haveX.has(exerciseKey(x)) && haveX.add(exerciseKey(x))).map((x) => ({ id: uid("x"), ...x }));
     const words = [];
     let dupes = 0;
     for (const w of pc.words) {
@@ -190,21 +200,23 @@ export function planAdd(chapters, parsed, defaultName) {
       have.add(wordKey(w));
       words.push({ id: uid("w"), sv: w.sv, el: w.el, ...(w.forms ? { forms: w.forms } : {}) });
     }
-    if (planned) { planned.words.push(...words); planned.dupes += dupes; return; }
-    out.push({ id: target ? target.id : uid("c"), name: target ? target.name : name, target, words, dupes });
+    if (planned) { planned.words.push(...words); planned.exercises.push(...exercises); planned.dupes += dupes; return; }
+    out.push({ id: target ? target.id : uid("c"), name: target ? target.name : name, target, words, exercises, dupes });
   });
   return out;
 }
 
 /** The chapter as text: what Share sends and Edit shows (the same format the paste reads) */
 export function chapterText(ch, withTitle = true) {
-  return [withTitle ? ch.name : null, ...ch.words.map((w) => `${w.forms ? w.forms.join(" | ") : w.sv} = ${w.el}`)].filter(Boolean).join("\n");
+  return [withTitle ? ch.name : null, ...ch.words.map((w) => `${w.forms ? w.forms.join(" | ") : w.sv} = ${w.el}`),
+    ...(ch.exercises || []).map(exerciseLine)].filter(Boolean).join("\n");
 }
 
 /** Edited text -> the chapter's words, keeping each word's id (and so its progress) when it's still there */
 export function applyEdit(chapter, text) {
   const { chapters, skipped } = parseWordList(text);
-  return { words: matchWords(chapter.words, chapters.flatMap((c) => c.words)), skipped };
+  return { words: matchWords(chapter.words, chapters.flatMap((c) => c.words)),
+    exercises: matchExercises(chapter.exercises || [], chapters.flatMap((c) => c.exercises)), skipped };
 }
 
 /** New words for a chapter, each keeping the id (and so the progress) of the old word it matches */
@@ -227,6 +239,105 @@ export function matchWords(oldWords, parsed) {
     words.push({ id, sv: p.sv, el: p.el, ...(p.forms ? { forms: p.forms } : {}) });
   }
   return words;
+}
+
+// ---------------------------------------------------------------------------
+// Övningar: sentence exercises, one a line in a chapter's list
+//   [fyll] Jag ___ Maria. (heta) = heter              type the missing word (the hint in brackets is optional)
+//   [välj] ___ kommer du ifrån? = Varifrån | Var | Vad   pick it: the first answer is the right one
+//   [ordna] Varifrån kommer du?                       build the sentence from its words (|| another right order;
+//                                                     ^ keeps a name's capital letter at the start)
+// Each can end with  // the Greek  and  !! a short rule shown after answering.
+// ---------------------------------------------------------------------------
+export const BLANK = "___";
+const KINDS = { fyll: "fyll", fill: "fyll", välj: "välj", valj: "välj", ordna: "ordna", order: "ordna" };
+export const EXERCISE_LABELS = { fyll: "Fyll i", välj: "Välj rätt", ordna: "Bygg meningen" };
+
+/** One line -> an exercise, {error} for an exercise line that's wrong, or null for any other line */
+export function parseExercise(line) {
+  const m = /^\[([a-zåäö]+)\]\s*(.+)$/i.exec(line.trim());
+  if (!m) return null;
+  const kind = KINDS[m[1].toLowerCase()];
+  if (!kind) return { error: `Unknown exercise [${m[1]}]` };
+  let rest = m[2], tip = "", el = "";
+  const t = rest.indexOf(" !! ");
+  if (t >= 0) { tip = rest.slice(t + 4).trim(); rest = rest.slice(0, t); }
+  const g = rest.indexOf(" // ");
+  if (g >= 0) { el = rest.slice(g + 4).trim(); rest = rest.slice(0, g); }
+  rest = rest.trim();
+  const extra = { ...(el ? { el } : {}), ...(tip ? { tip } : {}) };
+  if (kind === "ordna") {
+    const alts = rest.split(" || ").map((s) => s.trim()).filter(Boolean);
+    if (!alts.length || alts.some((a) => sentenceTokens(a).words.length < 2)) return { error: "A sentence to build needs at least two words" };
+    return { kind, text: alts[0], ...(alts.length > 1 ? { alts: alts.slice(1) } : {}), ...extra };
+  }
+  const eq = rest.lastIndexOf(" = ");
+  if (eq < 0) return { error: `[${kind}] needs " = " and the answer` };
+  let text = rest.slice(0, eq).trim();
+  const after = rest.slice(eq + 3).trim();
+  if (!text.includes(BLANK)) return { error: `[${kind}] needs ${BLANK} where the answer goes` };
+  if (kind === "välj") {
+    const options = after.split("|").map((s) => s.trim()).filter(Boolean);
+    if (options.length < 2) return { error: "[välj] needs the right answer and at least one wrong one, split by |" };
+    return { kind, text, options, ...extra };
+  }
+  let hint = "";
+  const h = /\s*\(([^)]*)\)\s*$/.exec(text);
+  if (h) { hint = h[1].trim(); text = text.slice(0, h.index).trim(); }
+  if (!after) return { error: "[fyll] needs the answer after =" };
+  return { kind, text, answer: after, ...(hint ? { hint } : {}), ...extra };
+}
+
+/** The exercise as a line again (what Edit shows) */
+export function exerciseLine(x) {
+  const tail = `${x.el ? ` // ${x.el}` : ""}${x.tip ? ` !! ${x.tip}` : ""}`;
+  if (x.kind === "ordna") return `[ordna] ${[x.text, ...(x.alts || [])].join(" || ")}${tail}`;
+  if (x.kind === "välj") return `[välj] ${x.text} = ${x.options.join(" | ")}${tail}`;
+  return `[fyll] ${x.text}${x.hint ? ` (${x.hint})` : ""} = ${x.answer}${tail}`;
+}
+
+export const exerciseKey = (x) => `${x.kind}\u0001${core(x.text.replace(/^\^/, ""))}`;
+
+/** Edited or replaced exercises keep their id (and progress) when their sentence is the same */
+export function matchExercises(old, parsed) {
+  const byKey = new Map(old.map((x) => [exerciseKey(x), x]));
+  const seen = new Set();
+  return parsed.filter((x) => !seen.has(exerciseKey(x)) && seen.add(exerciseKey(x)))
+    .map((x) => ({ ...x, id: byKey.get(exerciseKey(x))?.id || uid("x") }));
+}
+
+/** "Varifrån kommer du?" -> words ["varifrån", "kommer", "du"], end "?" (the first word in small letters unless ^) */
+export function sentenceTokens(sentence) {
+  let s = String(sentence || "").trim();
+  const keep = s.startsWith("^");
+  if (keep) s = s.slice(1);
+  const m = /[.!?…]+$/.exec(s);
+  const end = m ? m[0] : "";
+  if (m) s = s.slice(0, m.index);
+  const words = s.split(/\s+/).filter(Boolean);
+  if (words.length && !keep && !/^[A-ZÅÄÖ]{2,}$/.test(words[0])) words[0] = words[0][0].toLowerCase() + words[0].slice(1);
+  return { words, end };
+}
+
+/** A built sentence vs the right one(s), not minding the first capital letter */
+export function checkOrder(built, x) {
+  const norm = (ws) => ws.join(" ").toLowerCase();
+  return [x.text, ...(x.alts || [])].some((s) => norm(sentenceTokens(s).words) === norm(built));
+}
+
+/** The sentence with its gap filled in, for the answer shown afterwards */
+export const filled = (x, answer) => x.text.replace(BLANK, answer);
+
+/** An exercise as a question the exercise screen asks */
+export function exerciseQuestion(x) {
+  const first = (s) => alternatives(s)[0] || s;
+  const say = (s) => s.replace(/^\^/, "");
+  if (x.kind === "ordna") {
+    return { id: x.id, kind: "ordna", x, sv: say(x.text), el: x.el || "", fb: say(x.text), say: say(x.text), tip: x.tip || "" };
+  }
+  const answer = x.kind === "välj" ? x.options[0] : x.answer;
+  const full = filled(x, first(answer));
+  return { id: x.id, kind: x.kind, x, sv: answer, el: x.el || "", fb: full, say: full, tip: x.tip || "", hint: x.hint || "" };
 }
 
 // ---------------------------------------------------------------------------
